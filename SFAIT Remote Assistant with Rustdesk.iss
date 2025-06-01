@@ -36,9 +36,9 @@ ChangesAssociations=yes
 DisableProgramGroupPage=yes
 ; Uncomment the following line to run in non administrative install mode (install for current user only).
 ;PrivilegesRequired=lowest
-OutputDir=C:\Users\Alan\Downloads\REMOTE ASSISTANT NEW
+OutputDir=C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\Export InnoSetup
 OutputBaseFilename=SFAIT_Remote_Assistant_setup
-SetupIconFile=C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-CONTROL\1.1.0\SFAIT Remote Assistant\src\ui\sfait_blue.ico
+SetupIconFile=C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\Icons\128x128.ico
 SolidCompression=yes
 WizardStyle=modern
 
@@ -46,9 +46,9 @@ WizardStyle=modern
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
-Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-CONTROL\1.0.1\SFAIT Remote Assistant\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-CONTROL\1.0.1\SFAIT Remote Assistant\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-CONTROL\1.0.1\RustDesk2.toml"; DestDir: "{userappdata}\RustDesk\config"; Flags: ignoreversion
+Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\SFAIT Remote Assistant\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\SFAIT Remote Assistant\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\RustDesk2.toml"; DestDir: "{userappdata}\RustDesk\config"; Flags: ignoreversion
 ; NOTE: Don't use "Flags: ignoreversion" on any shared system files
 
 [Registry]
@@ -58,8 +58,9 @@ Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\DefaultIcon"; ValueType: s
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#MyAppExeName}"" ""%1"""
 
 [Icons]
-Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autoprograms}\SFAIT Remote Assistant"; Filename: "{app}\Update_agent.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\SFAIT Remote Assistant"; Filename: "{app}\Update_agent.exe"; WorkingDir: "{app}"
+
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; \
