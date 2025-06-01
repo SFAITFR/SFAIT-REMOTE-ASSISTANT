@@ -6,5 +6,5 @@ SFAIT Remote Assistant est une application pensée pour simplifier et sécuriser
 ## Conditions d’utilisation
 L’usage de cette application est strictement réservé à la clientèle SFAIT et aux équipes techniques. Elle n’a pas vocation à devenir votre outil personnel pour dépanner Tonton Jean depuis la campagne — aussi touchant cela puisse être. Notre serveur n’est ni dimensionné, ni destiné à supporter un usage public. En clair : pas de client, pas d’assistance. Et surtout, pas de surcharge serveur, merci.
 
-###Avec toute notre passion (et un peu de caféine),
+### Avec toute notre passion (et un peu de caféine),
 L’équipe de développement SFAIT ☕👨‍💻
