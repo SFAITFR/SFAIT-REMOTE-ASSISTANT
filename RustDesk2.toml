@@ -1,10 +1,10 @@
-rendezvous_server = 'server2.sfait.fr:21116'
+rendezvous_server = 'server.sfait.fr:21116'
 nat_type = 1
 serial = 0
 
 [options]
 local-ip-addr = '192.168.1.130'
-key = 'yysfTVXfdrXujs2cuTk+7HrVTMeXanOEyoDlzCh7C6g='
-relay-server = 'server2.sfait.fr'
-custom-rendezvous-server = 'server2.sfait.fr'
-api-server = 'https://server2.sfait.fr'
+key = 'LTqtucuEhtWSwLHx1wEqgoARqH6lk4Pu5tRSgS5sJoY='
+relay-server = 'server.sfait.fr'
+custom-rendezvous-server = 'server.sfait.fr'
+api-server = 'https://server.sfait.fr'

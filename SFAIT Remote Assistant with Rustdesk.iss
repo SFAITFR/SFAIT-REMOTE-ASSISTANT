@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "SFAIT Remote Assistant"
-#define MyAppVersion "1.1.0.0"
+#define MyAppVersion "1.2.1.0"
 #define MyAppPublisher "EI THOB ALAN - SFAIT"
 #define MyAppURL "https://www.sfait.fr"
 #define MyAppExeName "SFAIT Remote Assistant.exe"
@@ -41,15 +41,27 @@ OutputBaseFilename=SFAIT_Remote_Assistant_setup
 SetupIconFile=C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\Icons\128x128.ico
 SolidCompression=yes
 WizardStyle=modern
+CloseApplications=no
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"
 
 [Files]
+; Copie l’exécutable principal
 Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\SFAIT Remote Assistant\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\SFAIT Remote Assistant\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\RustDesk2.toml"; DestDir: "{userappdata}\RustDesk\config"; Flags: ignoreversion
-; NOTE: Don't use "Flags: ignoreversion" on any shared system files
+
+; Copie tous les fichiers sauf Update_agent.exe
+Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\SFAIT Remote Assistant\*"; \
+        DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: "Update_agent.exe"
+
+; Copie Update_agent.exe uniquement s’il n’existe pas déjà
+Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\SFAIT Remote Assistant\Update_agent.exe"; \
+        DestDir: "{app}"; Flags: ignoreversion onlyifdoesntexist
+
+; Fichier de configuration RustDesk
+Source: "C:\Users\Alan\Developpement\SFAIT Software\SFAIT-REMOTE-ASSISTANT\RustDesk2.toml"; \
+        DestDir: "{userappdata}\RustDesk\config"; Flags: ignoreversion
+
 
 [Registry]
 Root: HKA; Subkey: "Software\Classes\{#MyAppAssocExt}\OpenWithProgids"; ValueType: string; ValueName: "{#MyAppAssocKey}"; ValueData: ""; Flags: uninsdeletevalue
