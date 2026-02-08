@@ -1,10 +1,10 @@
-rendezvous_server = 'server.sfait.fr:21116'
+rendezvous_server = 'remote-assistant.sfait.fr:21116'
 nat_type = 1
 serial = 0
 
 [options]
 local-ip-addr = '192.168.1.130'
-key = 'LTqtucuEhtWSwLHx1wEqgoARqH6lk4Pu5tRSgS5sJoY='
-relay-server = 'server.sfait.fr'
-custom-rendezvous-server = 'server.sfait.fr'
-api-server = 'https://server.sfait.fr'
+key = 'CIib1hejuz7TSWXa19yUBcCiTfYqaY14aw5r3BXA89w='
+relay-server = 'remote-assistant.sfait.fr'
+custom-rendezvous-server = 'remote-assistant.sfait.fr'
+api-server = 'https://remote-assistant.sfait.fr'

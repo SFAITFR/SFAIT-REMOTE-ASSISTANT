@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "SFAIT Remote Assistant"
-#define MyAppVersion "1.2.1.0"
+#define MyAppVersion "1.2.3.0"
 #define MyAppPublisher "EI THOB ALAN - SFAIT"
 #define MyAppURL "https://www.sfait.fr"
 #define MyAppExeName "SFAIT Remote Assistant.exe"
