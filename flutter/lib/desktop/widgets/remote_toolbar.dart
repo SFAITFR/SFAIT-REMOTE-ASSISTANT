@@ -2270,11 +2270,9 @@ class _IconMenuButtonState extends State<_IconMenuButton> {
   Widget build(BuildContext context) {
     assert(widget.assetName != null || widget.icon != null);
     final icon = widget.icon ??
-        SvgPicture.asset(
+        _toolbarIconFromAsset(
           widget.assetName!,
-          colorFilter: ColorFilter.mode(Colors.white, BlendMode.srcIn),
-          width: _ToolbarTheme.buttonSize,
-          height: _ToolbarTheme.buttonSize,
+          _ToolbarTheme.buttonSize,
         );
     var button = SizedBox(
       width: widget.width ?? _ToolbarTheme.buttonSize,
@@ -2355,11 +2353,9 @@ class _IconSubmenuButtonState extends State<_IconSubmenuButton> {
   Widget build(BuildContext context) {
     assert(widget.svg != null || widget.icon != null);
     final icon = widget.icon ??
-        SvgPicture.asset(
+        _toolbarIconFromAsset(
           widget.svg!,
-          colorFilter: ColorFilter.mode(Colors.white, BlendMode.srcIn),
-          width: _ToolbarTheme.buttonSize,
-          height: _ToolbarTheme.buttonSize,
+          _ToolbarTheme.buttonSize,
         );
     final button = SizedBox(
         width: widget.width ?? _ToolbarTheme.buttonSize,
@@ -2392,6 +2388,34 @@ class _IconSubmenuButtonState extends State<_IconSubmenuButton> {
           vertical: _ToolbarTheme.buttonVMargin)
     ]);
   }
+}
+
+Widget _toolbarIconFromAsset(String assetName, double size) {
+  final icon = switch (assetName) {
+    'assets/pinned.svg' => Icons.push_pin,
+    'assets/unpinned.svg' => Icons.push_pin_outlined,
+    'assets/actions_mobile.svg' => Icons.touch_app,
+    'assets/screen.svg' => Icons.monitor,
+    'assets/actions.svg' => Icons.tune,
+    'assets/display.svg' => Icons.display_settings,
+    'assets/keyboard_mouse.svg' => Icons.keyboard_alt_outlined,
+    'assets/chat.svg' => Icons.chat_bubble_outline,
+    'assets/message_24dp_5F6368.svg' => Icons.message_outlined,
+    'assets/voice_call.svg' => Icons.call_outlined,
+    'assets/call_wait.svg' => Icons.call,
+    'assets/rec.svg' => Icons.fiber_manual_record,
+    'assets/close.svg' => Icons.close,
+    _ => null,
+  };
+  if (icon != null) {
+    return Icon(icon, color: Colors.white, size: size);
+  }
+  return SvgPicture.asset(
+    assetName,
+    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+    width: size,
+    height: size,
+  );
 }
 
 class _SubmenuButton extends StatelessWidget {

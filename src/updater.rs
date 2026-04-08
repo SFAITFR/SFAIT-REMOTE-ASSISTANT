@@ -118,8 +118,6 @@ fn start_auto_update_check_(rx_msg: Receiver<UpdateMsg>) {
 }
 
 fn check_update(manually: bool) -> ResultType<()> {
-    #[cfg(target_os = "windows")]
-    let update_msi = crate::platform::is_msi_installed()? && !crate::is_custom_client();
     if !(manually || config::Config::get_bool_option(config::keys::OPTION_ALLOW_AUTO_UPDATE)) {
         return Ok(());
     }
@@ -135,15 +133,18 @@ fn check_update(manually: bool) -> ResultType<()> {
         let download_url = update_url.replace("tag", "download");
         let version = download_url.split('/').last().unwrap_or_default();
         #[cfg(target_os = "windows")]
-        let download_url = if cfg!(feature = "flutter") {
-            format!(
-                "{}/rustdesk-{}-x86_64.{}",
-                download_url,
-                version,
-                if update_msi { "msi" } else { "exe" }
-            )
+        let (download_url, update_msi) = if cfg!(feature = "flutter") {
+            let asset = if crate::common::is_running_portable() {
+                crate::brand::WINDOWS_PORTABLE_ASSET
+            } else {
+                crate::brand::WINDOWS_SETUP_ASSET
+            };
+            (format!("{}/{}", download_url, asset), false)
         } else {
-            format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version)
+            (
+                format!("{}/rustdesk-{}-x86-sciter.exe", download_url, version),
+                false,
+            )
         };
         log::debug!("New version available: {}", &version);
         let client = create_http_client_with_url(&download_url);
@@ -219,6 +220,18 @@ fn update_new_version(update_msi: bool, version: &str, file_path: &PathBuf) {
                     }
                 }
             } else {
+                if crate::common::is_running_portable() {
+                    match crate::platform::update_to(p) {
+                        Ok(_) => {
+                            log::debug!("New portable version \"{}\" is launched.", version);
+                        }
+                        Err(e) => {
+                            log::error!("Failed to run the new portable version: {}", e);
+                            std::fs::remove_file(&file_path).ok();
+                        }
+                    }
+                    return;
+                }
                 let custom_client_staging_dir = if crate::is_custom_client() {
                     let custom_client_staging_dir =
                         crate::platform::get_custom_client_staging_dir();

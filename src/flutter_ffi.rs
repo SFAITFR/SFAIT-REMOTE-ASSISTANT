@@ -2790,7 +2790,11 @@ pub fn main_get_common(key: String) -> String {
                 .trim_start_matches('v')
                 .to_string();
             #[cfg(target_os = "windows")]
-            return crate::brand::WINDOWS_SETUP_ASSET.to_owned();
+            return if crate::common::is_running_portable() {
+                crate::brand::WINDOWS_PORTABLE_ASSET.to_owned()
+            } else {
+                crate::brand::WINDOWS_SETUP_ASSET.to_owned()
+            };
             #[cfg(target_os = "macos")]
             {
                 let arch = if cfg!(target_arch = "aarch64") {

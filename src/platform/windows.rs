@@ -1321,7 +1321,15 @@ fn get_install_info_with_subkey(subkey: String) -> (String, String, String, Stri
         "%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\{}",
         crate::get_app_name()
     );
-    let exe = format!("{}\\{}.exe", path, crate::get_app_name());
+    let branded_exe = format!("{}\\{}.exe", path, crate::get_app_name());
+    let legacy_exe = format!("{}\\rustdesk.exe", path);
+    let exe = if std::path::Path::new(&branded_exe).exists() {
+        branded_exe
+    } else if std::path::Path::new(&legacy_exe).exists() {
+        legacy_exe
+    } else {
+        branded_exe
+    };
     (subkey, path, start_menu, exe)
 }
 
@@ -1596,6 +1604,7 @@ copy /Y \"{tmp_path}\\{app_name} Tray.lnk\" \"%PROGRAMDATA%\\Microsoft\\Windows\
 chcp 65001
 md \"{path}\"
 {copy_exe}
+{rename_exe}
 reg add {subkey} /f
 reg add {subkey} /f /v DisplayIcon /t REG_SZ /d \"{display_icon}\"
 reg add {subkey} /f /v DisplayName /t REG_SZ /d \"{app_name}\"
@@ -1633,6 +1642,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
         sleep = if debug { "timeout 300" } else { "" },
         dels = if debug { "" } else { &dels },
         copy_exe = copy_exe_cmd(&src_exe, &exe, &path)?,
+        rename_exe = rename_exe_cmd(&src_exe, &path)?,
         import_config = get_import_config(&exe),
     );
     run_cmds(cmds, debug, "install")?;
@@ -3386,6 +3396,18 @@ pub fn handle_custom_client_staging_dir_before_update(
 
 // Used for auto update and manual update in the main window.
 pub fn update_to(file: &str) -> ResultType<()> {
+    if let Some(portable_exe) = crate::common::portable_executable_path() {
+        let current_pid = std::process::id().to_string();
+        std::process::Command::new(file)
+            .args([
+                "--portable-update",
+                portable_exe.to_string_lossy().as_ref(),
+                &current_pid,
+            ])
+            .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+            .spawn()?;
+        return Ok(());
+    }
     if file.ends_with(".exe") {
         let custom_client_staging_dir = get_custom_client_staging_dir();
         if crate::is_custom_client() {
@@ -3526,7 +3548,9 @@ pub fn try_remove_temp_update_files() {
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"));
                 let is_sfait_setup =
                     file_name.eq_ignore_ascii_case(crate::brand::WINDOWS_SETUP_ASSET);
-                if is_legacy_release_file || is_sfait_setup {
+                let is_sfait_portable =
+                    file_name.eq_ignore_ascii_case(crate::brand::WINDOWS_PORTABLE_ASSET);
+                if is_legacy_release_file || is_sfait_setup || is_sfait_portable {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
                     if let Ok(metadata) = std::fs::metadata(&path) {
                         if let Ok(modified) = metadata.modified() {

@@ -54,6 +54,7 @@ pub type NotifyMessageBox = fn(String, String, String, String) -> dyn Future<Out
 
 // the executable name of the portable version
 pub const PORTABLE_APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
+pub const PORTABLE_EXECUTABLE_RUNTIME_ENV_KEY: &str = "RUSTDESK_PORTABLE_EXECUTABLE";
 
 pub const PLATFORM_WINDOWS: &str = "Windows";
 pub const PLATFORM_LINUX: &str = "Linux";
@@ -1057,6 +1058,17 @@ pub fn get_full_name() -> String {
 pub fn is_setup(name: &str) -> bool {
     let name = name.to_lowercase();
     name.ends_with("install.exe") || name.ends_with("setup.exe")
+}
+
+pub fn portable_executable_path() -> Option<std::path::PathBuf> {
+    std::env::var(PORTABLE_EXECUTABLE_RUNTIME_ENV_KEY)
+        .ok()
+        .map(std::path::PathBuf::from)
+        .filter(|path| path.exists())
+}
+
+pub fn is_running_portable() -> bool {
+    portable_executable_path().is_some()
 }
 
 pub fn get_custom_rendezvous_server(custom: String) -> String {

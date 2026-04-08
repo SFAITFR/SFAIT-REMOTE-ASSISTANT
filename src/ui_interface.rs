@@ -583,6 +583,9 @@ pub fn is_installed_lower_version() -> bool {
     return false;
     #[cfg(windows)]
     {
+        if crate::common::is_running_portable() {
+            return false;
+        }
         let b = crate::platform::windows::get_reg("BuildDate");
         return crate::BUILD_DATE.cmp(&b).is_gt();
     }

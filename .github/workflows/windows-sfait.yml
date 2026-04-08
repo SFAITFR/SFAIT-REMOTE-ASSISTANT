@@ -24,6 +24,7 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
   WINDOWS_ASSET_NAME: "SFAIT_Remote_Assistant_setup.exe"
+  WINDOWS_PORTABLE_ASSET_NAME: "SFAIT_Remote_Assistant_portable.exe"
 
 jobs:
   generate-bridge:
@@ -168,12 +169,15 @@ jobs:
           # Keep the setup filename stable so the Windows updater can resolve it
           # directly from the GitHub release without version-specific logic.
           mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/${WINDOWS_ASSET_NAME}"
+          cp "./SignOutput/${WINDOWS_ASSET_NAME}" "./SignOutput/${WINDOWS_PORTABLE_ASSET_NAME}"
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-setup-${{ env.APP_VERSION }}
-          path: ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+          path: |
+            ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+            ./SignOutput/${{ env.WINDOWS_PORTABLE_ASSET_NAME }}
           if-no-files-found: error
 
       - name: Publish setup to GitHub release
@@ -182,4 +186,6 @@ jobs:
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           overwrite_files: true
-          files: ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+          files: |
+            ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+            ./SignOutput/${{ env.WINDOWS_PORTABLE_ASSET_NAME }}

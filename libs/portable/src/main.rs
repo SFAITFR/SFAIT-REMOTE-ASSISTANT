@@ -19,6 +19,7 @@ const APP_METADATA_CONFIG: &str = "meta.toml";
 const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
 const APP_PREFIX: &str = "sfait-remote-assistant";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
+const PORTABLE_EXECUTABLE_RUNTIME_ENV_KEY: &str = "RUSTDESK_PORTABLE_EXECUTABLE";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
 
@@ -150,6 +151,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     }
 
     cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
+    cmd.env(PORTABLE_EXECUTABLE_RUNTIME_ENV_KEY, &exe);
     if use_null_stdio() {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())
@@ -186,6 +188,10 @@ fn main() {
         }
         i += 1;
     }
+    #[cfg(windows)]
+    if win::handle_portable_update(&args).is_ok_and(|handled| handled) {
+        return;
+    }
     let lower_exe = arg_exe.to_lowercase();
     let click_setup = args.is_empty()
         && (lower_exe.ends_with("install.exe") || lower_exe.ends_with("setup.exe"));
@@ -193,6 +199,18 @@ fn main() {
     let quick_support = args.is_empty() && win::is_quick_support_exe(&arg_exe);
     #[cfg(not(windows))]
     let quick_support = false;
+
+    #[cfg(windows)]
+    if click_setup {
+        match win::relaunch_setup_as_admin(&arg_exe) {
+            Ok(true) => return,
+            Ok(false) => return,
+            Err(e) => {
+                eprintln!("{:?}", e);
+                return;
+            }
+        }
+    }
 
     let mut ui = false;
     let reader = BinaryReader::default();
@@ -204,7 +222,7 @@ fn main() {
         &mut ui,
     ) {
         if click_setup {
-            args = vec!["--install".to_owned()];
+            args = vec!["--silent-install".to_owned()];
         } else if quick_support {
             args = vec!["--quick_support".to_owned()];
         }
@@ -214,11 +232,104 @@ fn main() {
 
 #[cfg(windows)]
 mod win {
-    use std::{fs, os::windows::process::CommandExt, path::Path, process::Command};
+    use std::{
+        fs,
+        os::windows::process::CommandExt,
+        path::{Path, PathBuf},
+        process::Command,
+        time::Duration,
+    };
 
     // Used for privacy mode(magnifier impl).
     pub const RUNTIME_BROKER_EXE: &'static str = "C:\\Windows\\System32\\RuntimeBroker.exe";
     pub const WIN_TOPMOST_INJECTED_PROCESS_EXE: &'static str = "RuntimeBroker_rustdesk.exe";
+
+    pub(super) fn handle_portable_update(args: &[String]) -> std::io::Result<bool> {
+        if args.first().map(String::as_str) != Some("--portable-update") {
+            return Ok(false);
+        }
+        let Some(target) = args.get(1).map(PathBuf::from) else {
+            return Ok(true);
+        };
+        let wait_pid = args
+            .get(2)
+            .and_then(|pid| pid.parse::<u32>().ok())
+            .unwrap_or_default();
+        wait_for_process_exit(wait_pid);
+        let current_exe = std::env::current_exe()?;
+        replace_portable_executable(&current_exe, &target)?;
+        Command::new(&target)
+            .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+            .spawn()?;
+        Ok(true)
+    }
+
+    fn replace_portable_executable(source: &Path, target: &Path) -> std::io::Result<()> {
+        for _ in 0..40 {
+            let _ = fs::remove_file(target);
+            if fs::copy(source, target).is_ok() {
+                return Ok(());
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        let _ = fs::remove_file(target);
+        fs::copy(source, target)?;
+        Ok(())
+    }
+
+    fn wait_for_process_exit(pid: u32) {
+        if pid == 0 {
+            return;
+        }
+        for _ in 0..20 {
+            if !is_process_running(pid) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+        let _ = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+            .status();
+        for _ in 0..20 {
+            if !is_process_running(pid) {
+                return;
+            }
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    }
+
+    fn is_process_running(pid: u32) -> bool {
+        let Ok(status) = Command::new("tasklist")
+            .args(["/FI", &format!("PID eq {pid}")])
+            .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+            .output()
+        else {
+            return false;
+        };
+        let output = String::from_utf8_lossy(&status.stdout);
+        output.contains(&pid.to_string())
+    }
+
+    pub(super) fn relaunch_setup_as_admin(exe: &str) -> std::io::Result<bool> {
+        let status = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "Start-Process",
+                "-FilePath",
+                exe,
+                "-ArgumentList",
+                "--silent-install",
+                "-Verb",
+                "RunAs",
+            ])
+            .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
+            .status()?;
+        Ok(status.success())
+    }
 
     pub(super) fn copy_runtime_broker(dir: &Path) {
         let src = RUNTIME_BROKER_EXE;
