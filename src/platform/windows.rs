@@ -1880,8 +1880,8 @@ fn get_public_base_dir() -> PathBuf {
 #[inline]
 pub fn get_custom_client_staging_dir() -> PathBuf {
     get_public_base_dir()
-        .join("RustDesk")
-        .join("RustDeskCustomClientStaging")
+        .join(crate::get_app_name())
+        .join("CustomClientStaging")
 }
 
 /// Removes the custom client staging directory.
@@ -1890,7 +1890,7 @@ pub fn get_custom_client_staging_dir() -> PathBuf {
 ///
 /// Rationale
 /// - The staging directory only contains a small `custom.txt`, leaving it is harmless.
-/// - Deleting directories under a public location (e.g., C:\\ProgramData\\RustDesk) is
+/// - Deleting directories under a public location (e.g., under C:\\ProgramData) is
 ///   susceptible to TOCTOU attacks if an unprivileged user can replace the path with a
 ///   symlink/junction between checks and deletion.
 ///
@@ -3522,10 +3522,11 @@ pub fn try_remove_temp_update_files() {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
-                // Match files like rustdesk-*.msi or rustdesk-*.exe
-                if file_name.starts_with("rustdesk-")
-                    && (file_name.ends_with(".msi") || file_name.ends_with(".exe"))
-                {
+                let is_legacy_release_file = file_name.starts_with("rustdesk-")
+                    && (file_name.ends_with(".msi") || file_name.ends_with(".exe"));
+                let is_sfait_setup =
+                    file_name.eq_ignore_ascii_case(crate::brand::WINDOWS_SETUP_ASSET);
+                if is_legacy_release_file || is_sfait_setup {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
                     if let Ok(metadata) = std::fs::metadata(&path) {
                         if let Ok(modified) = metadata.modified() {
@@ -3589,7 +3590,7 @@ pub fn message_box(text: &str) {
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect::<Vec<u16>>();
-    let caption = "RustDesk Output"
+    let caption = format!("{} Output", crate::get_app_name())
         .encode_utf16()
         .chain(std::iter::once(0))
         .collect::<Vec<u16>>();

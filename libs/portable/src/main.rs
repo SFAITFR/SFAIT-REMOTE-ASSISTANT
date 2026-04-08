@@ -17,7 +17,7 @@ const APP_METADATA: &[u8] = include_bytes!("../app_metadata.toml");
 const APP_METADATA: &[u8] = &[];
 const APP_METADATA_CONFIG: &str = "meta.toml";
 const META_LINE_PREFIX_TIMESTAMP: &str = "timestamp = ";
-const APP_PREFIX: &str = "rustdesk";
+const APP_PREFIX: &str = "sfait-remote-assistant";
 const APPNAME_RUNTIME_ENV_KEY: &str = "RUSTDESK_APPNAME";
 #[cfg(windows)]
 const SET_FOREGROUND_WINDOW_ENV_KEY: &str = "SET_FOREGROUND_WINDOW";
@@ -186,7 +186,9 @@ fn main() {
         }
         i += 1;
     }
-    let click_setup = args.is_empty() && arg_exe.to_lowercase().ends_with("install.exe");
+    let lower_exe = arg_exe.to_lowercase();
+    let click_setup = args.is_empty()
+        && (lower_exe.ends_with("install.exe") || lower_exe.ends_with("setup.exe"));
     #[cfg(windows)]
     let quick_support = args.is_empty() && win::is_quick_support_exe(&arg_exe);
     #[cfg(not(windows))]

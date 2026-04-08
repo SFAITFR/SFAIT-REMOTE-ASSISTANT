@@ -2790,21 +2790,7 @@ pub fn main_get_common(key: String) -> String {
                 .trim_start_matches('v')
                 .to_string();
             #[cfg(target_os = "windows")]
-            return match (
-                crate::platform::windows::is_msi_installed(),
-                crate::common::is_custom_client(),
-            ) {
-                (Ok(true), false) => {
-                    format!("{}-{_version}-x86_64.msi", crate::brand::RELEASE_ASSET_PREFIX)
-                }
-                (Ok(true), true) | (Ok(false), _) => {
-                    format!("{}-{_version}-x86_64.exe", crate::brand::RELEASE_ASSET_PREFIX)
-                }
-                (Err(e), _) => {
-                    log::error!("Failed to check if is msi: {}", e);
-                    format!("error:update-failed-check-msi-tip")
-                }
-            };
+            return crate::brand::WINDOWS_SETUP_ASSET.to_owned();
             #[cfg(target_os = "macos")]
             {
                 let arch = if cfg!(target_arch = "aarch64") {

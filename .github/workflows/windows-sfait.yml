@@ -1,0 +1,185 @@
+name: Build Windows SFAIT Remote Assistant
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional existing release tag to upload to, e.g. v1.3.0"
+        required: false
+        type: string
+  push:
+    tags:
+      - "v*.*.*"
+      - "*.*.*"
+      - "v*.*.*.*"
+      - "*.*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  RUST_VERSION: "1.75"
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
+  WINDOWS_ASSET_NAME: "SFAIT_Remote_Assistant_setup.exe"
+
+jobs:
+  generate-bridge:
+    uses: ./.github/workflows/bridge.yml
+
+  build-windows-setup:
+    name: windows-setup
+    needs: [generate-bridge]
+    runs-on: windows-2022
+
+    steps:
+      - name: Export GitHub Actions cache environment variables
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Restore bridge files
+        uses: actions/download-artifact@v4
+        with:
+          name: bridge-artifact
+          path: ./
+
+      - name: Resolve version and release target
+        shell: pwsh
+        run: |
+          $cargo = Get-Content Cargo.toml
+          $versionLine = $cargo | Select-String '^version = "(.*)"$' | Select-Object -First 1
+          if (-not $versionLine) {
+            throw "Unable to read version from Cargo.toml"
+          }
+          $version = $versionLine.Matches[0].Groups[1].Value
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+          $releaseTag = ""
+          if ("${{ github.ref_type }}" -eq "tag") {
+            $releaseTag = "${{ github.ref_name }}"
+          } elseif ("${{ inputs.release_tag }}" -ne "") {
+            $releaseTag = "${{ inputs.release_tag }}"
+          }
+
+          if ($releaseTag -ne "") {
+            "PUBLISH_RELEASE=true" | Out-File -FilePath $env:GITHUB_ENV -Append
+            "RELEASE_TAG=$releaseTag" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } else {
+            "PUBLISH_RELEASE=false" | Out-File -FilePath $env:GITHUB_ENV -Append
+          }
+
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2.12.0
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - name: Replace engine with RustDesk custom Flutter engine
+        shell: pwsh
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          Move-Item -Force windows-x64-release/* "C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/"
+
+      - name: Patch Flutter
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff "$(dirname "$(dirname "$(which flutter)")")"
+          cd "$(dirname "$(dirname "$(which flutter)")")"
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: sfait-windows-${{ runner.os }}
+
+      - name: Setup vcpkg with GitHub Actions binary cache
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
+
+      - name: Install vcpkg dependencies
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        shell: bash
+        run: |
+          if ! "$VCPKG_ROOT/vcpkg" install --triplet x64-windows-static --x-install-root="$VCPKG_ROOT/installed"; then
+            find "${VCPKG_ROOT}/" -name "*.log" | while read -r log_file; do
+              echo "$log_file:"
+              echo "======"
+              cat "$log_file"
+              echo "======"
+              echo ""
+            done
+            exit 1
+          fi
+
+      - name: Build Windows Flutter app
+        shell: bash
+        run: |
+          python3 ./build.py --portable --hwcodec --flutter --vram --skip-portable-pack
+          rm -rf ./sfait-windows-dist
+          mv ./flutter/build/windows/x64/runner/Release ./sfait-windows-dist
+
+      - name: Capture Runner.res for packer metadata
+        shell: bash
+        run: |
+          runner_res="$(find . -name 'Runner.res' | head -n 1)"
+          if [ -z "$runner_res" ]; then
+            echo "Runner.res not found" >&2
+            exit 1
+          fi
+          cp "$runner_res" ./libs/portable/Runner.res
+
+      - name: Build Windows setup executable
+        shell: bash
+        run: |
+          sed -i '/dpiAware/d' res/manifest.xml
+          pushd ./libs/portable
+          pip3 install -r requirements.txt
+          python3 ./generate.py -f ../../sfait-windows-dist/ -o . -e ../../sfait-windows-dist/rustdesk.exe
+          popd
+          mkdir -p ./SignOutput
+          # Keep the setup filename stable so the Windows updater can resolve it
+          # directly from the GitHub release without version-specific logic.
+          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/${WINDOWS_ASSET_NAME}"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-setup-${{ env.APP_VERSION }}
+          path: ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+          if-no-files-found: error
+
+      - name: Publish setup to GitHub release
+        if: env.PUBLISH_RELEASE == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          overwrite_files: true
+          files: ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}

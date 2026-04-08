@@ -10,6 +10,7 @@ pub const SERVER_KEY: &str = "CIib1hejuz7TSWXa19yUBcCiTfYqaY14aw5r3BXA89w=";
 
 pub const RELEASE_ASSET_PREFIX: &str = "sfait-remote-assistant";
 pub const GITHUB_REPO: &str = "SFAITFR/SFAIT-REMOTE-ASSISTANT";
+pub const WINDOWS_SETUP_ASSET: &str = "SFAIT_Remote_Assistant_setup.exe";
 
 pub fn latest_release_url() -> String {
     format!("https://github.com/{}/releases/latest", GITHUB_REPO)
