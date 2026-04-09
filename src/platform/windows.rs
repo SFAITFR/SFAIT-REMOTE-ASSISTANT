@@ -3257,6 +3257,50 @@ taskkill /F /IM {app_name}.exe{filter}
     Ok(())
 }
 
+fn schedule_portable_update(new_exe: &str) -> ResultType<()> {
+    let current_exe = std::env::current_exe()?;
+    let current_exe = current_exe.to_string_lossy().to_string();
+    let target_exe = std::env::var(PORTABLE_APPNAME_RUNTIME_ENV_KEY)
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(current_exe);
+    if target_exe.eq_ignore_ascii_case(new_exe) {
+        bail!("Portable update source and target are identical.");
+    }
+
+    let cmds = format!(
+        r#"
+chcp 65001
+taskkill /F /PID {pid} >nul 2>nul
+set /A RETRIES=0
+:retry
+copy /Y "{src}" "{dst}" >nul 2>nul
+if not errorlevel 1 goto launch
+set /A RETRIES+=1
+if %RETRIES% GEQ 20 exit /b 1
+timeout /t 1 /nobreak >nul
+goto retry
+:launch
+start "" "{dst}"
+ping 127.0.0.1 -n 3 >nul
+del /F /Q "{src}" >nul 2>nul
+"#,
+        pid = get_current_pid(),
+        src = new_exe,
+        dst = target_exe,
+    );
+    let script = write_cmds(cmds, "bat", "portable_update")?;
+    let script = script
+        .to_str()
+        .ok_or_else(|| anyhow!("Failed to convert portable update script path to string"))?
+        .to_owned();
+    std::process::Command::new("cmd.exe")
+        .args(["/C", &script])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()?;
+    Ok(())
+}
+
 fn get_reg_msi_key(subkey: &str, is_msi: Option<bool>) -> Option<String> {
     // Only proceed if it's a custom client and MSI is installed.
     // `is_msi.unwrap_or(true)` is intentional: subsequent code validates the registry,
@@ -3387,6 +3431,10 @@ pub fn handle_custom_client_staging_dir_before_update(
 // Used for auto update and manual update in the main window.
 pub fn update_to(file: &str) -> ResultType<()> {
     if file.ends_with(".exe") {
+        if !is_installed() {
+            schedule_portable_update(file)?;
+            std::process::exit(0);
+        }
         let custom_client_staging_dir = get_custom_client_staging_dir();
         if crate::is_custom_client() {
             handle_custom_client_staging_dir_before_update(&custom_client_staging_dir)?;

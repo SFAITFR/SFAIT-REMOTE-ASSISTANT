@@ -3,6 +3,7 @@ param(
     [string]$Manufacturer = "EI THOB ALAN - SFAIT",
     [string]$DistDir = "flutter\build\windows\x64\runner\Release",
     [string]$PortableExe = "target\release\rustdesk-portable-packer.exe",
+    [string]$SetupExe = "target\release\sfait-migration-setup.exe",
     [string]$NuGetExe = "target\tools\nuget.exe"
 )
 
@@ -46,6 +47,11 @@ if (-not (Test-Path $distSourceDir)) {
 $portableSourceExe = Join-Path $repoRoot $PortableExe
 if (-not (Test-Path $portableSourceExe)) {
     throw "Binaire portable introuvable: $portableSourceExe"
+}
+
+$setupSourceExe = Join-Path $repoRoot $SetupExe
+if (-not (Test-Path $setupSourceExe)) {
+    throw "Binaire setup introuvable: $setupSourceExe"
 }
 
 $msbuild = "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
@@ -122,10 +128,12 @@ if (-not $builtMsi) {
 }
 
 $portableOutput = Join-Path $signOutputDir "SFAIT_Remote_Assistant_portable.exe"
+$setupOutput = Join-Path $signOutputDir "SFAIT_Remote_Assistant_setup.exe"
 $msiOutput = Join-Path $signOutputDir "SFAIT_Remote_Assistant_installer.msi"
 
 Copy-Item -LiteralPath $portableSourceExe -Destination $portableOutput -Force
+Copy-Item -LiteralPath $setupSourceExe -Destination $setupOutput -Force
 Copy-Item -LiteralPath $builtMsi.FullName -Destination $msiOutput -Force
 
 Write-Host "MSI genere: $($builtMsi.FullName)"
-Get-Item $portableOutput, $msiOutput | Select-Object FullName, Length, LastWriteTime
+Get-Item $portableOutput, $setupOutput, $msiOutput | Select-Object FullName, Length, LastWriteTime

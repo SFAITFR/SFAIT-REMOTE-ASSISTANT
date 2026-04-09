@@ -1,0 +1,21 @@
+<!--
+Adapted by SFAIT for Custom Dialogs insertions
+-->
+<WixLocalization Culture="fr-fr"
+	xmlns="http://wixtoolset.org/schemas/v4/wxl">
+
+	<!-- Firewall Extension needs translation here -->
+	<String Id="msierrFirewallCannotConnect" Overridable="yes" Value="Impossible de se connecter au Pare-feu Windows. ([2]   [3]   [4]   [5])" />
+
+	<String Id="WixSchedFirewallExceptionsInstall" Overridable="yes" Value="Configuration du Pare-feu Windows" />
+	<String Id="WixSchedFirewallExceptionsUninstall" Overridable="yes" Value="Configuration du Pare-feu Windows" />
+	<String Id="WixRollbackFirewallExceptionsInstall" Overridable="yes" Value="Annulation de la configuration du Pare-feu Windows" />
+	<String Id="WixExecFirewallExceptionsInstall" Overridable="yes" Value="Installation de la configuration du Pare-feu Windows" />
+	<String Id="WixRollbackFirewallExceptionsUninstall" Overridable="yes" Value="Annulation de la configuration du Pare-feu Windows" />
+	<String Id="WixExecFirewallExceptionsUninstall" Overridable="yes" Value="Desinstallation de la configuration du Pare-feu Windows" />
+
+	<!-- Util Extension -->
+	<String Id="msierrSecureObjectsFailedCreateSD" Overridable="yes" Value="Impossible de creer le descripteur de securite [3]\[4], erreur : [2]" />
+	<String Id="msierrSecureObjectsFailedSet" Overridable="yes" Value="Impossible d'appliquer le descripteur de securite de l'objet [3], erreur : [2]" />
+	<String Id="msierrSecureObjectsUnknownType" Overridable="yes" Value="Type d'objet inconnu [3], erreur : [2]" />
+</WixLocalization>

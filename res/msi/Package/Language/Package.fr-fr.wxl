@@ -1,0 +1,55 @@
+<!--
+This file contains the declaration of all the localizable strings.
+-->
+<WixLocalization Culture="fr-fr" Codepage="1252"
+	xmlns="http://wixtoolset.org/schemas/v4/wxl">
+
+	<String Id="SummaryCodepage" Value="1252" />
+	<String Id="ProductLanguage" Value="1036" />
+
+	<!-- General strings -->
+	<String Id="DowngradeError" Value="Une version plus recente de [ProductName] est deja installee." />
+
+	<String Id="AR_Comment" Value="SFAIT Remote Assistant" />
+
+	<String Id="F_App" Value="SFAIT Remote Assistant" />
+	<String Id="F_App_Desc" Value="Installation des composants principaux de SFAIT Remote Assistant." />
+
+	<String Id="SC_Uninstall" Value="Desinstaller SFAIT Remote Assistant" />
+	<String Id="SC_Uninstall_Desc" Value="Supprime SFAIT Remote Assistant de cet ordinateur." />
+
+	<!-- Client related strings -->
+	<String Id="F_Client" Value="Client" />
+	<String Id="F_Client_Desc" Value="Interface principale de SFAIT Remote Assistant." />
+	<String Id="F_Client_Plugins" Value="Extensions" />
+	<String Id="F_Client_Plugins_Desc" Value="Extensions du client." />
+	<String Id="F_LAVFilters" Value="Filtres LAV" />
+	<String Id="F_LAVFilters_Desc" Value="Filtres DirectShow recommandes pour l'audio et la video." />
+
+	<String Id="SC_Client" Value="SFAIT Remote Assistant" />
+	<String Id="SC_Client_Desc" Value="Ouvrir SFAIT Remote Assistant." />
+
+	<String Id="SC_Client_Tray" Value="SFAIT Remote Assistant Tray" />
+	<String Id="SC_Client_Tray_Desc" Value="Lancer SFAIT Remote Assistant en arriere-plan." />
+
+	<!-- Server related strings -->
+	<String Id="F_Server" Value="Serveur" />
+	<String Id="F_Server_Desc" Value="Service principal de SFAIT Remote Assistant." />
+	<String Id="F_Server_Plugins" Value="Extensions" />
+	<String Id="F_Server_Plugins_Desc" Value="Extensions du serveur." />
+
+	<String Id="Service_DisplayName" Value="Service SFAIT Remote Assistant" />
+	<String Id="Service_Description" Value="Ce service execute SFAIT Remote Assistant." />
+
+	<!-- Launch Conditions -->
+	<String Id="LC_OS" Value="[ProductName] necessite au minimum Windows 7 / Windows Server 2008 R2." />
+	<String Id="LC_ADMIN" Value="Vous devez disposer des droits administrateur pour installer [ProductName]." />
+
+	<!-- User Interfaces -->
+	<String Id="AnotherAppDialogTitle" Value="Installation annulee."/>
+	<String Id="AnotherAppDialogDescription" Value="Cette application a deja ete installee par auto-installation. Veuillez d'abord la desinstaller."/>
+
+	<String Id="MyInstallDirDlgDesktopShortcuts" Value="Creer une icone sur le bureau" />
+	<String Id="MyInstallDirDlgStartMenuShortcuts" Value="Creer des raccourcis dans le menu Demarrer" />
+
+</WixLocalization>

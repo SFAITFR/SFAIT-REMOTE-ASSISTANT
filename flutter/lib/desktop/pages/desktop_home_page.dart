@@ -34,8 +34,6 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 const borderColor = Color(0xFF2F65BA);
-const kSfaitDownloadsCenterUrl =
-    'https://www.sfait.fr/centre-de-telechargements';
 
 class _DesktopHomePageState extends State<DesktopHomePage>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
@@ -437,24 +435,23 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     final detectedVersion = bind.mainGetNewVersion();
     final effectiveUpdateUrl = _getEffectiveUpdateUrl();
     if (effectiveUpdateUrl.isNotEmpty && !isCardClosed) {
-      final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
-      String btnText = isToUpdate ? 'Update' : 'Download';
-      GestureTapCallback onPressed = () async {
-        final Uri url = Uri.parse(effectiveUpdateUrl);
-        await launchUrl(url);
-      };
-      if (isToUpdate) {
-        onPressed = () {
-          handleUpdate(effectiveUpdateUrl);
-        };
-      }
+      final canUpdateInApp = isWindows || isMacOS;
+      String btnText = canUpdateInApp ? 'Update' : 'Download';
+      GestureTapCallback onPressed = canUpdateInApp
+          ? () {
+              handleUpdate(effectiveUpdateUrl);
+            }
+          : () async {
+              final Uri url = Uri.parse(effectiveUpdateUrl);
+              await launchUrl(url);
+            };
       return buildInstallCard(
           "Status",
           "${translate("new-version-of-{${bind.mainGetAppNameSync()}}-tip")} ($detectedVersion).",
           btnText,
           onPressed,
           closeButton: true,
-          help: isToUpdate ? 'Changelog' : null,
+          help: canUpdateInApp ? 'Changelog' : null,
           link: effectiveUpdateUrl);
     }
     if (systemError.isNotEmpty) {
@@ -702,12 +699,6 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         : (detectedVersion.isNotEmpty
             ? 'https://github.com/SFAITFR/SFAIT-REMOTE-ASSISTANT/releases/tag/v$detectedVersion'
             : '');
-    if (releasePageUrl.isEmpty) {
-      return '';
-    }
-    if (isWindows && !bind.mainIsInstalled()) {
-      return kSfaitDownloadsCenterUrl;
-    }
     return releasePageUrl;
   }
 
@@ -799,14 +790,18 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     if (_startupUpdateGateReleased ||
         !mounted ||
         !isMainDesktopWindow ||
-        !(isMacOS || isWindows) ||
-        !bind.mainIsInstalled()) {
+        !(isMacOS || isWindows)) {
+      _releaseStartupUpdateGate();
+      return;
+    }
+
+    if (isMacOS && !bind.mainIsInstalled()) {
       _releaseStartupUpdateGate();
       return;
     }
 
     _block.value = true;
-    final deadline = DateTime.now().add(const Duration(seconds: 6));
+    final deadline = DateTime.now().add(const Duration(seconds: 12));
 
     while (mounted && DateTime.now().isBefore(deadline)) {
       await bind.mainGetSoftwareUpdateUrl();
@@ -825,10 +820,25 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   void initState() {
     super.initState();
     Future.microtask(_runStartupUpdateGate);
-    Future.microtask(() => bind.mainGetSoftwareUpdateUrl());
+    Future.microtask(() async {
+      final hadUpdate = _getEffectiveUpdateUrl().isNotEmpty;
+      await bind.mainGetSoftwareUpdateUrl();
+      if (!hadUpdate && mounted && _getEffectiveUpdateUrl().isNotEmpty) {
+        setState(() {});
+      }
+    });
     _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       if (stateGlobal.updateUrl.value.isEmpty) {
+        final hadUpdate = _getEffectiveUpdateUrl().isNotEmpty;
         await bind.mainGetSoftwareUpdateUrl();
+        if (!hadUpdate && mounted && _getEffectiveUpdateUrl().isNotEmpty) {
+          final updateUrl = _getEffectiveUpdateUrl();
+          setState(() {});
+          if (!_startupUpdatePromptShown && updateUrl.isNotEmpty) {
+            await _showStartupUpdatePrompt(updateUrl);
+            return;
+          }
+        }
       }
       await gFFI.serverModel.fetchID();
       final error = await bind.mainGetError();

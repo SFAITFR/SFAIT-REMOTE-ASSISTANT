@@ -136,7 +136,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
     println!("executing {}", path.display());
     // setup env
     let exe = std::env::current_exe().unwrap_or_default();
-    let exe_name = exe.file_name().unwrap_or_default();
+    let exe_path = exe.to_string_lossy().to_string();
     // run executable
     let mut cmd = Command::new(path);
     cmd.args(args);
@@ -149,7 +149,7 @@ fn execute(path: PathBuf, args: Vec<String>, _ui: bool) {
         }
     }
 
-    cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_name);
+    cmd.env(APPNAME_RUNTIME_ENV_KEY, exe_path);
     if use_null_stdio() {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::null())

@@ -998,19 +998,66 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
     let proxy_conf = Config::get_socks();
     let tls_url = get_url_for_tls(&github_api_url, &proxy_conf);
     let tls_type = get_cached_tls_type(tls_url).unwrap_or(TlsType::Rustls);
+    log::info!(
+        "Checking software update: current_version={}, api_url={}, tls_type={:?}",
+        crate::VERSION,
+        github_api_url,
+        tls_type
+    );
     let client = create_http_client_async(tls_type, false);
     let response = client
         .get(&github_api_url)
         .header("User-Agent", crate::brand::APP_NAME)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
         .await?;
-    let bytes = response.bytes().await?;
-    let json: Value = serde_json::from_slice(&bytes)?;
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_owned();
+    let body = response.text().await?;
+    let body_preview: String = body.chars().take(400).collect();
+    log::info!(
+        "Software update HTTP response: status={}, content_type={}, body_preview={}",
+        status,
+        content_type,
+        body_preview.replace('\n', "\\n")
+    );
+    if !status.is_success() {
+        bail!(
+            "software update request failed: status={}, content_type={}, body_preview={}",
+            status,
+            content_type,
+            body_preview.replace('\n', "\\n")
+        );
+    }
+    let json: Value = serde_json::from_str(&body)?;
     let tag_name = json["tag_name"].as_str().unwrap_or_default().to_string();
+    if tag_name.is_empty() {
+        bail!(
+            "software update response missing tag_name: content_type={}, body_preview={}",
+            content_type,
+            body_preview.replace('\n', "\\n")
+        );
+    }
     let response_url = crate::brand::release_tag_url(&tag_name);
     let latest_release_version = tag_name.trim_start_matches('v').to_owned();
+    let current_version_number = get_version_number(crate::VERSION);
+    let latest_version_number = get_version_number(&latest_release_version);
+    log::info!(
+        "Software update response: tag_name={}, latest_release_version={}, current_version_number={}, latest_version_number={}, response_url={}",
+        tag_name,
+        latest_release_version,
+        current_version_number,
+        latest_version_number,
+        response_url
+    );
 
-    if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {
+    if latest_version_number > current_version_number {
         #[cfg(feature = "flutter")]
         {
             let mut m = HashMap::new();
@@ -1021,8 +1068,10 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
             }
         }
         *SOFTWARE_UPDATE_URL.lock().unwrap() = response_url;
+        log::info!("Software update available; update URL set.");
     } else {
         *SOFTWARE_UPDATE_URL.lock().unwrap() = "".to_string();
+        log::info!("No software update available; update URL cleared.");
     }
     Ok(())
 }
