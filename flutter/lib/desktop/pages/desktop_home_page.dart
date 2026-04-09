@@ -34,6 +34,8 @@ class DesktopHomePage extends StatefulWidget {
 }
 
 const borderColor = Color(0xFF2F65BA);
+const kSfaitDownloadsCenterUrl =
+    'https://www.sfait.fr/centre-de-telechargements';
 
 class _DesktopHomePageState extends State<DesktopHomePage>
     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
@@ -431,13 +433,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     );
   }
 
-  Widget buildHelpCards(String updateUrl) {
+  Widget buildHelpCards(String _updateUrl) {
     final detectedVersion = bind.mainGetNewVersion();
-    final effectiveUpdateUrl = updateUrl.isNotEmpty
-        ? updateUrl
-        : (detectedVersion.isNotEmpty
-            ? 'https://github.com/SFAITFR/SFAIT-REMOTE-ASSISTANT/releases/tag/v$detectedVersion'
-            : '');
+    final effectiveUpdateUrl = _getEffectiveUpdateUrl();
     if (effectiveUpdateUrl.isNotEmpty && !isCardClosed) {
       final isToUpdate = (isWindows || isMacOS) && bind.mainIsInstalled();
       String btnText = isToUpdate ? 'Update' : 'Download';
@@ -698,15 +696,19 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   }
 
   String _getEffectiveUpdateUrl() {
-    final updateUrl = stateGlobal.updateUrl.value;
-    if (updateUrl.isNotEmpty) {
-      return updateUrl;
-    }
     final detectedVersion = bind.mainGetNewVersion();
-    if (detectedVersion.isEmpty) {
+    final releasePageUrl = stateGlobal.updateUrl.value.isNotEmpty
+        ? stateGlobal.updateUrl.value
+        : (detectedVersion.isNotEmpty
+            ? 'https://github.com/SFAITFR/SFAIT-REMOTE-ASSISTANT/releases/tag/v$detectedVersion'
+            : '');
+    if (releasePageUrl.isEmpty) {
       return '';
     }
-    return 'https://github.com/SFAITFR/SFAIT-REMOTE-ASSISTANT/releases/tag/v$detectedVersion';
+    if (isWindows && !bind.mainIsInstalled()) {
+      return kSfaitDownloadsCenterUrl;
+    }
+    return releasePageUrl;
   }
 
   Future<void> _releaseStartupUpdateGate() async {

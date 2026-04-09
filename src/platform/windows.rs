@@ -3524,9 +3524,9 @@ pub fn try_remove_temp_update_files() {
             if let Some(file_name) = path.file_name().and_then(|n| n.to_str()) {
                 let is_legacy_release_file = file_name.starts_with("rustdesk-")
                     && (file_name.ends_with(".msi") || file_name.ends_with(".exe"));
-                let is_sfait_setup =
-                    file_name.eq_ignore_ascii_case(crate::brand::WINDOWS_SETUP_ASSET);
-                if is_legacy_release_file || is_sfait_setup {
+                let is_sfait_release_file = file_name.eq_ignore_ascii_case(crate::brand::WINDOWS_INSTALLER_ASSET)
+                    || file_name.eq_ignore_ascii_case(crate::brand::WINDOWS_PORTABLE_ASSET);
+                if is_legacy_release_file || is_sfait_release_file {
                     // Skip files modified within the last hour to avoid deleting files being downloaded
                     if let Ok(metadata) = std::fs::metadata(&path) {
                         if let Ok(modified) = metadata.modified() {

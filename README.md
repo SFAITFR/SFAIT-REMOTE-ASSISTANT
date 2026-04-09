@@ -9,3 +9,23 @@ Aucunes ? Utilisez-le comme bon vous semble, tant que cela est possible.
 
 ### Avec toute notre passion (et un peu de caféine),
 L’équipe de développement SFAIT ☕👨‍💻
+
+## Windows
+Le dépôt permet maintenant de produire deux variantes Windows à partir du même code source :
+
+- `SFAIT_Remote_Assistant_portable.exe` pour lancer l’application en mode portable
+- `SFAIT_Remote_Assistant_installer.msi` pour une installation Windows classique
+
+Dans la GUI Windows, l’écran d’installation permet aussi de choisir `Run without install` pour basculer sans installation définitive.
+
+Pour générer localement le portable et le vrai installeur MSI :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\build-windows-installer.ps1
+```
+
+Pour exporter les artefacts locaux vers `Téléchargements` avec horodatage :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\export-windows-artifacts.ps1
+```

@@ -23,7 +23,8 @@ env:
   FLUTTER_VERSION: "3.24.5"
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
-  WINDOWS_ASSET_NAME: "SFAIT_Remote_Assistant_setup.exe"
+  WINDOWS_INSTALLER_ASSET_NAME: "SFAIT_Remote_Assistant_installer.msi"
+  WINDOWS_PORTABLE_ASSET_NAME: "SFAIT_Remote_Assistant_portable.exe"
 
 jobs:
   generate-bridge:
@@ -143,8 +144,6 @@ jobs:
         shell: bash
         run: |
           python3 ./build.py --portable --hwcodec --flutter --vram --skip-portable-pack
-          rm -rf ./sfait-windows-dist
-          mv ./flutter/build/windows/x64/runner/Release ./sfait-windows-dist
 
       - name: Capture Runner.res for packer metadata
         shell: bash
@@ -156,30 +155,35 @@ jobs:
           fi
           cp "$runner_res" ./libs/portable/Runner.res
 
-      - name: Build Windows setup executable
+      - name: Build Windows portable executable
         shell: bash
         run: |
           sed -i '/dpiAware/d' res/manifest.xml
           pushd ./libs/portable
           pip3 install -r requirements.txt
-          python3 ./generate.py -f ../../sfait-windows-dist/ -o . -e ../../sfait-windows-dist/rustdesk.exe
+          python3 ./generate.py -f ../../flutter/build/windows/x64/runner/Release/ -o . -e ../../flutter/build/windows/x64/runner/Release/rustdesk.exe
           popd
-          mkdir -p ./SignOutput
-          # Keep the setup filename stable so the Windows updater can resolve it
-          # directly from the GitHub release without version-specific logic.
-          mv ./target/release/rustdesk-portable-packer.exe "./SignOutput/${WINDOWS_ASSET_NAME}"
+
+      - name: Build Windows MSI installer artifact
+        shell: pwsh
+        run: |
+          ./scripts/build-windows-installer.ps1
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-setup-${{ env.APP_VERSION }}
-          path: ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+          name: windows-build-${{ env.APP_VERSION }}
+          path: |
+            ./SignOutput/${{ env.WINDOWS_INSTALLER_ASSET_NAME }}
+            ./SignOutput/${{ env.WINDOWS_PORTABLE_ASSET_NAME }}
           if-no-files-found: error
 
-      - name: Publish setup to GitHub release
+      - name: Publish Windows artifacts to GitHub release
         if: env.PUBLISH_RELEASE == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
           overwrite_files: true
-          files: ./SignOutput/${{ env.WINDOWS_ASSET_NAME }}
+          files: |
+            ./SignOutput/${{ env.WINDOWS_INSTALLER_ASSET_NAME }}
+            ./SignOutput/${{ env.WINDOWS_PORTABLE_ASSET_NAME }}

@@ -994,10 +994,7 @@ pub fn check_software_update() {
 
 #[tokio::main(flavor = "current_thread")]
 pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
-    let github_api_url = format!(
-        "https://api.github.com/repos/{}/releases/latest",
-        crate::brand::GITHUB_REPO
-    );
+    let github_api_url = crate::brand::latest_release_api_url();
     let proxy_conf = Config::get_socks();
     let tls_url = get_url_for_tls(&github_api_url, &proxy_conf);
     let tls_type = get_cached_tls_type(tls_url).unwrap_or(TlsType::Rustls);
@@ -1010,11 +1007,7 @@ pub async fn do_check_software_update() -> hbb_common::ResultType<()> {
     let bytes = response.bytes().await?;
     let json: Value = serde_json::from_slice(&bytes)?;
     let tag_name = json["tag_name"].as_str().unwrap_or_default().to_string();
-    let response_url = format!(
-        "https://github.com/{}/releases/tag/{}",
-        crate::brand::GITHUB_REPO,
-        tag_name
-    );
+    let response_url = crate::brand::release_tag_url(&tag_name);
     let latest_release_version = tag_name.trim_start_matches('v').to_owned();
 
     if get_version_number(&latest_release_version) > get_version_number(crate::VERSION) {

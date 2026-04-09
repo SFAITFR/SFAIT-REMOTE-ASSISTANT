@@ -2790,7 +2790,11 @@ pub fn main_get_common(key: String) -> String {
                 .trim_start_matches('v')
                 .to_string();
             #[cfg(target_os = "windows")]
-            return crate::brand::WINDOWS_SETUP_ASSET.to_owned();
+            {
+                let use_installer =
+                    crate::platform::is_msi_installed().unwrap_or(false) && !crate::is_custom_client();
+                return crate::brand::windows_release_asset(use_installer).to_owned();
+            }
             #[cfg(target_os = "macos")]
             {
                 let arch = if cfg!(target_arch = "aarch64") {

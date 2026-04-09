@@ -231,7 +231,7 @@ class _InstallPageBodyState extends State<_InstallPageBody>
                     ),
                   ),
                   Offstage(
-                    offstage: bind.installShowRunWithoutInstall(),
+                    offstage: !bind.installShowRunWithoutInstall(),
                     child: Obx(
                       () => OutlinedButton.icon(
                         icon: Icon(Icons.screen_share_outlined, size: 16),
