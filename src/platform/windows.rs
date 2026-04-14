@@ -94,6 +94,7 @@ pub const SET_FOREGROUND_WINDOW: &'static str = "SET_FOREGROUND_WINDOW";
 
 const REG_NAME_INSTALL_DESKTOPSHORTCUTS: &str = "DESKTOPSHORTCUTS";
 const REG_NAME_INSTALL_STARTMENUSHORTCUTS: &str = "STARTMENUSHORTCUTS";
+const REG_NAME_INSTALL_STARTUPSHORTCUTS: &str = "STARTUPSHORTCUTS";
 pub const REG_NAME_INSTALL_PRINTER: &str = "PRINTER";
 
 pub fn get_focused_display(displays: Vec<DisplayInfo>) -> Option<usize> {
@@ -1225,6 +1226,10 @@ pub fn get_install_options() -> String {
     if let Some(start_menu_shortcuts) = start_menu_shortcuts {
         opts.insert(REG_NAME_INSTALL_STARTMENUSHORTCUTS, start_menu_shortcuts);
     }
+    let startup_shortcuts = get_reg_of_hkcr(&subkey, REG_NAME_INSTALL_STARTUPSHORTCUTS);
+    if let Some(startup_shortcuts) = startup_shortcuts {
+        opts.insert(REG_NAME_INSTALL_STARTUPSHORTCUTS, startup_shortcuts);
+    }
     let printer = get_reg_of_hkcr(&subkey, REG_NAME_INSTALL_PRINTER);
     if let Some(printer) = printer {
         opts.insert(REG_NAME_INSTALL_PRINTER, printer);
@@ -1386,6 +1391,7 @@ fn get_after_install(
     exe: &str,
     reg_value_start_menu_shortcuts: Option<String>,
     reg_value_desktop_shortcuts: Option<String>,
+    reg_value_startup_shortcuts: Option<String>,
     reg_value_printer: Option<String>,
 ) -> String {
     let app_name = crate::get_app_name();
@@ -1417,12 +1423,20 @@ fn get_after_install(
             )
         })
         .unwrap_or_default();
+    let startup_shortcuts = reg_value_startup_shortcuts
+        .map(|v| {
+            format!(
+                "reg add HKEY_CLASSES_ROOT\\.{ext} /f /v {REG_NAME_INSTALL_STARTUPSHORTCUTS} /t REG_SZ /d \"{v}\""
+            )
+        })
+        .unwrap_or_default();
 
     format!("
     chcp 65001
     reg add HKEY_CLASSES_ROOT\\.{ext} /f
     {desktop_shortcuts}
     {start_menu_shortcuts}
+    {startup_shortcuts}
     {reg_printer}
     reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f
     reg add HKEY_CLASSES_ROOT\\.{ext}\\DefaultIcon /f /ve /t REG_SZ  /d \"\\\"{exe}\\\",0\"
@@ -1513,6 +1527,7 @@ oLink.Save
     let tray_shortcut = get_tray_shortcut(&path, &exe, &cur_exe, &tmp_path)?;
     let mut reg_value_desktop_shortcuts = "0".to_owned();
     let mut reg_value_start_menu_shortcuts = "0".to_owned();
+    let mut reg_value_startup_shortcuts = "0".to_owned();
     let mut reg_value_printer = "0".to_owned();
     let mut shortcuts = Default::default();
     if options.contains("desktopicon") {
@@ -1536,6 +1551,10 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{start_menu}\\\"
     let install_printer = options.contains("printer") && is_win_10_or_greater();
     if install_printer {
         reg_value_printer = "1".to_owned();
+    }
+    let install_startup_shortcut = options.contains("startup");
+    if install_startup_shortcut {
+        reg_value_startup_shortcuts = "1".to_owned();
     }
 
     let meta = std::fs::symlink_metadata(&current_exe)?;
@@ -1568,7 +1587,7 @@ if exist \"{tmp_path}\\{app_name} Tray.lnk\" del /f /q \"{tmp_path}\\{app_name} 
         Config::set_option("api-server".into(), lic.api);
     }
 
-    let tray_shortcuts = if config::is_outgoing_only() {
+    let tray_shortcuts = if config::is_outgoing_only() || !install_startup_shortcut {
         "".to_owned()
     } else {
         format!("
@@ -1628,6 +1647,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
             &exe,
             Some(reg_value_start_menu_shortcuts),
             Some(reg_value_desktop_shortcuts),
+            Some(reg_value_startup_shortcuts),
             Some(reg_value_printer)
         ),
         sleep = if debug { "timeout 300" } else { "" },
@@ -1643,7 +1663,7 @@ copy /Y \"{tmp_path}\\Uninstall {app_name}.lnk\" \"{path}\\\"
 pub fn run_after_install() -> ResultType<()> {
     let (_, _, _, exe) = get_install_info();
     run_cmds(
-        get_after_install(&exe, None, None, None),
+        get_after_install(&exe, None, None, None, None),
         true,
         "after_install",
     )
@@ -2030,7 +2050,9 @@ pub fn update_install_option(k: &str, v: &str) -> ResultType<()> {
     if !is_installed() || !crate::is_server() {
         return Ok(());
     }
-    if ![REG_NAME_INSTALL_PRINTER].contains(&k) || !["0", "1"].contains(&v) {
+    if ![REG_NAME_INSTALL_PRINTER, REG_NAME_INSTALL_STARTUPSHORTCUTS].contains(&k)
+        || !["0", "1"].contains(&v)
+    {
         return Ok(());
     }
     let app_name = crate::get_app_name();
@@ -3535,8 +3557,8 @@ if exist \"%PROGRAMDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{ap
 ", app_name = crate::get_app_name())
     } else {
         format!("
-sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= auto DisplayName= \"{app_name} Service\"
-sc start {app_name}
+sc create {app_name} binpath= \"\\\"{exe}\\\" --service\" start= demand DisplayName= \"{app_name} Service\"
+sc sdset {app_name} D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRPWPLOCRRC;;;IU)(A;;CCLCSWRPWPLOCRRC;;;SU)
 ",
     app_name = crate::get_app_name())
     }
@@ -3550,9 +3572,6 @@ fn run_after_run_cmds(silent: bool) {
             .args(&["/c", "timeout", "/t", "2", "&", &format!("{exe}")])
             .creation_flags(winapi::um::winbase::CREATE_NO_WINDOW)
             .spawn());
-    }
-    if Config::get_option("stop-service") != "Y" {
-        allow_err!(std::process::Command::new(&exe).arg("--tray").spawn());
     }
     std::thread::sleep(std::time::Duration::from_millis(300));
 }
@@ -3749,6 +3768,36 @@ fn get_uninstall_amyuni_idd() -> String {
 #[inline]
 pub fn is_self_service_running() -> bool {
     is_service_running(&crate::get_app_name())
+}
+
+pub fn ensure_self_service_running() {
+    if Config::get_option("stop-service") == "Y"
+        || !is_installed()
+        || !is_cur_exe_the_installed()
+        || is_self_service_running()
+    {
+        return;
+    }
+    let app_name = crate::get_app_name();
+    log::info!("Try to start service on demand: {}", app_name);
+    match std::process::Command::new("sc")
+        .arg("start")
+        .arg(&app_name)
+        .creation_flags(CREATE_NO_WINDOW)
+        .status()
+    {
+        Ok(status) if status.success() => log::info!("Service started on demand: {}", app_name),
+        Ok(status) => log::warn!(
+            "Failed to start service on demand: {}, status: {}",
+            app_name,
+            status
+        ),
+        Err(err) => log::warn!(
+            "Failed to start service on demand: {}, error: {}",
+            app_name,
+            err
+        ),
+    }
 }
 
 pub fn is_service_running(service_name: &str) -> bool {

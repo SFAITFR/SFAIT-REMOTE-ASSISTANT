@@ -4,7 +4,37 @@
 
 #include <iostream>
 #include <Windows.h>
+#include <sddl.h>
 #include <strsafe.h>
+
+// Allow LocalSystem/Admins full control, and allow the logged-in user to
+// start/stop/query the service when the app or the Startup entry is launched.
+static LPCWSTR SERVICE_SECURITY_DESCRIPTOR =
+    L"D:"
+    L"(A;;CCLCSWRPWPDTLOCRRC;;;SY)"
+    L"(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)"
+    L"(A;;CCLCSWRPWPLOCRRC;;;IU)"
+    L"(A;;CCLCSWRPWPLOCRRC;;;SU)";
+
+bool MySetServiceSecurityW(SC_HANDLE hService)
+{
+    PSECURITY_DESCRIPTOR securityDescriptor = NULL;
+    if (!ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            SERVICE_SECURITY_DESCRIPTOR,
+            SDDL_REVISION_1,
+            &securityDescriptor,
+            NULL)) {
+        WcaLog(LOGMSG_STANDARD, "ConvertStringSecurityDescriptorToSecurityDescriptor failed (%d)\n", GetLastError());
+        return false;
+    }
+
+    bool success = SetServiceObjectSecurity(hService, DACL_SECURITY_INFORMATION, securityDescriptor);
+    if (!success) {
+        WcaLog(LOGMSG_STANDARD, "SetServiceObjectSecurity failed (%d)\n", GetLastError());
+    }
+    LocalFree(securityDescriptor);
+    return success;
+}
 
 bool MyCreateServiceW(LPCWSTR serviceName, LPCWSTR displayName, LPCWSTR binaryPath)
 {
@@ -30,7 +60,7 @@ bool MyCreateServiceW(LPCWSTR serviceName, LPCWSTR displayName, LPCWSTR binaryPa
         displayName,               // service name to display 
         SERVICE_ALL_ACCESS,        // desired access 
         SERVICE_WIN32_OWN_PROCESS, // service type 
-        SERVICE_AUTO_START,        // start type 
+        SERVICE_DEMAND_START,      // start type
         SERVICE_ERROR_NORMAL,      // error control type 
         binaryPath,                // path to service's binary 
         NULL,                      // no load ordering group 
@@ -48,6 +78,7 @@ bool MyCreateServiceW(LPCWSTR serviceName, LPCWSTR displayName, LPCWSTR binaryPa
     {
         WcaLog(LOGMSG_STANDARD, "Service installed successfully\n");
     }
+    MySetServiceSecurityW(schService);
 
     CloseServiceHandle(schService);
     CloseServiceHandle(schSCManager);

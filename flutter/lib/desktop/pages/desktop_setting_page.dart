@@ -76,10 +76,6 @@ class DesktopSettingPage extends StatefulWidget {
     if (!bind.isIncomingOnly()) SettingsTabKey.display,
     if (!isWeb && !bind.isIncomingOnly() && bind.pluginFeatureIsEnabled())
       SettingsTabKey.plugin,
-    if (!bind.isDisableAccount()) SettingsTabKey.account,
-    if (isWindows &&
-        bind.mainGetBuildinOption(key: kOptionHideRemotePrinterSetting) != 'Y')
-      SettingsTabKey.printer,
     SettingsTabKey.about,
   ];
 
@@ -2367,8 +2363,7 @@ class _AboutState extends State<_About> {
       final buildDate = data['buildDate'].toString();
       final fingerprint = data['fingerprint'].toString();
       final currentYear = DateTime.now().year;
-      final sfaitCopyright =
-          'Copyright © $currentYear EI THOB ALAN - SFAIT.';
+      final sfaitCopyright = 'Copyright © $currentYear EI THOB ALAN - SFAIT.';
       final upstreamCopyright =
           'Copyright © $currentYear Purslane Ltd. All rights reserved.';
       const linkStyle = TextStyle(decoration: TextDecoration.underline);
@@ -2396,8 +2391,8 @@ class _AboutState extends State<_About> {
                   child: Text(sfaitCopyright).marginSymmetric(vertical: 4.0)),
               const SizedBox(height: 8.0),
               SelectionArea(
-                  child: Text(upstreamCopyright)
-                      .marginSymmetric(vertical: 4.0)),
+                  child:
+                      Text(upstreamCopyright).marginSymmetric(vertical: 4.0)),
               InkWell(
                   onTap: () {
                     launchUrlString('https://rustdesk.com/privacy.html');

@@ -521,6 +521,8 @@ UINT __stdcall CreateStartService(__in MSIHANDLE hInstall)
     LPWSTR svcBinary = NULL;
     wchar_t szSvcDisplayName[500] = { 0 };
     DWORD cchSvcDisplayName = sizeof(szSvcDisplayName) / sizeof(szSvcDisplayName[0]);
+    SERVICE_STATUS_PROCESS svcStatus;
+    bool serviceCreated = false;
 
     hr = WcaInitialize(hInstall, "CreateStartService");
     ExitOnFailure(hr, "Failed to initialize");
@@ -532,7 +534,7 @@ UINT __stdcall CreateStartService(__in MSIHANDLE hInstall)
     hr = WcaReadStringFromCaData(&pwz, &svcParams);
     ExitOnFailure(hr, "failed to read database key from custom action data: %ls", pwz);
 
-    WcaLog(LOGMSG_STANDARD, "Try create start service : %ls", svcParams);
+    WcaLog(LOGMSG_STANDARD, "Try create service : %ls", svcParams);
 
     svcName = svcParams;
     svcBinary = wcschr(svcParams, L';');
@@ -547,22 +549,16 @@ UINT __stdcall CreateStartService(__in MSIHANDLE hInstall)
     ExitOnFailure(hr, "Failed to compose a resource identifier string");
     if (MyCreateServiceW(svcName, szSvcDisplayName, svcBinary)) {
         WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is created.", svcName);
-        if (MyStartServiceW(svcName)) {
-            WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is started.", svcName);
-        }
-        else {
-            WcaLog(LOGMSG_STANDARD, "Failed to start service: \"%ls\"", svcName);
-        }
+        serviceCreated = true;
     }
     else {
-        WcaLog(LOGMSG_STANDARD, "Failed to create service: \"%ls\"", svcName);
+        WcaLog(LOGMSG_STANDARD, "Failed to create service: \"%ls\", try recreate service by shell", svcName);
+        TryCreateStartServiceByShell(svcName, svcBinary, szSvcDisplayName);
+        serviceCreated = true;
     }
 
-    if (IsServiceRunningW(svcName)) {
-        WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is running.", svcName);
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is not running, try create and start service by shell", svcName);
+    if (serviceCreated && !QueryServiceStatusExW(svcName, &svcStatus)) {
+        WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is not found, try create service by shell", svcName);
         TryCreateStartServiceByShell(svcName, svcBinary, szSvcDisplayName);
     }
 
@@ -900,7 +896,7 @@ void TryCreateStartServiceByShell(LPWSTR svcName, LPWSTR svcBinary, LPWSTR szSvc
         }
     }
 
-    hr = StringCchPrintfW(szCmd, cchCmd, L"create %ls binpath= \"%ls\" start= auto DisplayName= \"%ls\"", svcName, szNewBin, szSvcDisplayName);
+    hr = StringCchPrintfW(szCmd, cchCmd, L"create %ls binpath= \"%ls\" start= demand DisplayName= \"%ls\"", svcName, szNewBin, szSvcDisplayName);
     if (FAILED(hr)) {
         WcaLog(LOGMSG_STANDARD, "Failed to make command: %ls", svcName);
         return;
@@ -913,7 +909,20 @@ void TryCreateStartServiceByShell(LPWSTR svcName, LPWSTR svcBinary, LPWSTR szSvc
         WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is created with shell.", svcName);
     }
 
-    // Query and log if the service is running.
+    hr = StringCchPrintfW(szCmd, cchCmd, L"sdset %ls D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWRPWPLOCRRC;;;IU)(A;;CCLCSWRPWPLOCRRC;;;SU)", svcName);
+    if (FAILED(hr)) {
+        WcaLog(LOGMSG_STANDARD, "Failed to make sdset command: %ls", svcName);
+        return;
+    }
+    hi = ShellExecuteW(NULL, L"open", L"sc", szCmd, NULL, SW_HIDE);
+    if ((int)hi <= 32) {
+        WcaLog(LOGMSG_STANDARD, "Failed to set service security with shell : %d, last error: 0x%02X.", (int)hi, GetLastError());
+    }
+    else {
+        WcaLog(LOGMSG_STANDARD, "Service \"%ls\" security is set with shell.", svcName);
+    }
+
+    // Query and log if the service exists.
     for (int k = 0; k < 10; ++k) {
         if (!QueryServiceStatusExW(svcName, &svcStatus)) {
             lastErrorCode = GetLastError();
@@ -932,26 +941,9 @@ void TryCreateStartServiceByShell(LPWSTR svcName, LPWSTR svcBinary, LPWSTR szSvc
             break;
         }
         else {
-            if (svcStatus.dwCurrentState == SERVICE_RUNNING) {
-                WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is running.", svcName);
-                return;
-            }
-            WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is not running.", svcName);
-            break;
+            WcaLog(LOGMSG_STANDARD, "Service \"%ls\" exists, current status: %d.", svcName, svcStatus.dwCurrentState);
+            return;
         }
-    }
-
-    hr = StringCchPrintfW(szCmd, cchCmd, L"/c sc start %ls", svcName);
-    if (FAILED(hr)) {
-        WcaLog(LOGMSG_STANDARD, "Failed to make command: %ls", svcName);
-        return;
-    }
-    hi = ShellExecuteW(NULL, L"open", L"cmd.exe", szCmd, NULL, SW_HIDE);
-    if ((int)hi <= 32) {
-        WcaLog(LOGMSG_STANDARD, "Failed to start service with shell : %d, last error: 0x%02X.", (int)hi, GetLastError());
-    }
-    else {
-        WcaLog(LOGMSG_STANDARD, "Service \"%ls\" is started with shell.", svcName);
     }
 }
 
