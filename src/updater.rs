@@ -141,6 +141,14 @@ fn check_update(manually: bool) -> ResultType<()> {
         }
 
         let version = update_url.split('/').last().unwrap_or_default().to_owned();
+        log::debug!("New version available: {}", &version);
+        #[cfg(not(target_os = "windows"))]
+        {
+            log::info!(
+                "New version available, but automatic installation is only implemented for Windows."
+            );
+            return Ok(());
+        }
         #[cfg(target_os = "windows")]
         let download_url = format!(
             "{}",
@@ -149,7 +157,8 @@ fn check_update(manually: bool) -> ResultType<()> {
                 crate::brand::windows_release_asset(update_msi)
             )
         );
-        log::debug!("New version available: {}", &version);
+        #[cfg(not(target_os = "windows"))]
+        let download_url = String::new();
         let client = create_http_client_with_url(&download_url);
         let Some(file_path) = get_download_file_from_url(&download_url) else {
             bail!("Failed to get the file path from the URL: {}", download_url);

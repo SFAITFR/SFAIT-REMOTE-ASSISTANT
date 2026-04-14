@@ -19,7 +19,9 @@ cert.pfx
 *jpg
 !flutter/assets/*.png
 !flutter/assets/*.svg
+!flutter/macos/Assets.xcassets/AppIcon.appiconset/*.png
 !res/icon.png
+!res/macos-icon.svg
 sciter.dll
 **pdb
 src/bridge_generated.rs
