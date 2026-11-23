@@ -31,23 +31,35 @@ make_dmg() {
 
   cd "${PROJECT_DIR}/flutter"
   flutter pub get
+  local app_path="${APP_PATH}"
   if [ -n "${xcode_arch}" ]; then
+    local derived_data="${PROJECT_DIR}/flutter/build/macos-${label}"
     cd "${PROJECT_DIR}/flutter/macos"
     xcodebuild \
       -workspace Runner.xcworkspace \
       -scheme Runner \
       -configuration Release \
-      -destination "platform=macOS" \
+      -destination "platform=macOS,arch=${xcode_arch}" \
+      -derivedDataPath "${derived_data}" \
       ARCHS="${xcode_arch}" \
       ONLY_ACTIVE_ARCH=NO \
       build
+    app_path="${derived_data}/Build/Products/Release/${APP_NAME}"
   else
     flutter build macos --release
   fi
 
+  # The launchd daemon runs Contents/MacOS/service: ship the one built for this
+  # architecture, then re-sign the bundle (ad-hoc) so its signature stays valid.
+  cp -f "${PROJECT_DIR}/target/${cargo_target}/release/service" "${app_path}/Contents/MacOS/service"
+  codesign --force --sign - "${app_path}/Contents/MacOS/service"
+  codesign --force --sign - --preserve-metadata=entitlements,requirements,flags,runtime "${app_path}"
+  codesign --verify --deep --strict "${app_path}"
+  echo "${label}: $(lipo -archs "${app_path}/Contents/MacOS/SFAIT Remote Assistant") / service $(lipo -archs "${app_path}/Contents/MacOS/service") / dylib $(lipo -archs "${app_path}/Contents/Frameworks/liblibrustdesk.dylib")"
+
   local stage_dir="${TMP_ROOT}/${label}"
   mkdir -p "${stage_dir}"
-  ditto "${APP_PATH}" "${stage_dir}/${APP_NAME}"
+  ditto "${app_path}" "${stage_dir}/${APP_NAME}"
 
   hdiutil create \
     -volname "SFAIT Remote Assistant" \
