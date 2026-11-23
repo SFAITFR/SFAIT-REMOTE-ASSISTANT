@@ -11,7 +11,7 @@ on run {daemon_file, agent_file, user}
 
   set sh4 to "mkdir -p " & quoted form of root_pref_dir & " && cp -rf " & quoted form of (user_pref_dir & "/SFAIT Remote Assistant2.toml") & " " & quoted form of root_pref_dir & ";"
 
-  set sh5 to "launchctl load -w /Library/LaunchDaemons/fr.sfait.remoteassistant_service.plist;"
+  set sh5 to "launchctl bootout system/fr.sfait.remoteassistant_service 2>/dev/null || launchctl unload -w /Library/LaunchDaemons/fr.sfait.remoteassistant_service.plist 2>/dev/null || true; launchctl bootstrap system /Library/LaunchDaemons/fr.sfait.remoteassistant_service.plist 2>/dev/null || launchctl load -w /Library/LaunchDaemons/fr.sfait.remoteassistant_service.plist;"
 
   set sh to sh1 & sh2 & sh3 & sh4 & sh5
 

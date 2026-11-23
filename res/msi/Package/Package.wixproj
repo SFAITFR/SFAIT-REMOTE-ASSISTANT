@@ -3,7 +3,7 @@
     <IncludeSearchPaths>
     </IncludeSearchPaths>
     <Configurations>Release</Configurations>
-    <Platforms>x64</Platforms>
+    <Platforms>x64;ARM64</Platforms>
     <Cultures>fr-fr</Cultures>
   </PropertyGroup>
   <ItemGroup>

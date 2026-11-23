@@ -84,8 +84,6 @@ const double _kPositionEpsilon = 1e-6;
 bool get isMainDesktopWindow =>
     desktopType == DesktopType.main || desktopType == DesktopType.cm;
 
-String get screenInfo => screenInfo_;
-
 /// Check if the app is running with single view mode.
 bool isSingleViewApp() {
   return desktopType == DesktopType.cm;
@@ -716,6 +714,17 @@ closeConnection({String? id}) {
       stateGlobal.isInMainPage = true;
     } else {
       final controller = Get.find<DesktopTabController>();
+      if (controller.tabType == DesktopTabType.terminal &&
+          controller.onCloseWindow != null) {
+        // Terminal windows are scoped to one peer. The optional id passed to
+        // closeConnection() is that peer id, not a terminal tab key
+        // (${peerId}_${terminalId}). Closing from terminal dialogs should close
+        // the peer's whole terminal window, including all terminal tabs.
+        unawaited(controller.onCloseWindow!().catchError((e, _) {
+          debugPrint('[closeConnection] Failed to close terminal window: $e');
+        }));
+        return;
+      }
       controller.closeBy(id);
     }
   }
@@ -1174,6 +1183,48 @@ void msgBox(SessionID sessionId, String type, String title, String text,
     VoidCallback? onSubmit,
     int? submitTimeout}) {
   dialogManager.dismissAll();
+  if (type.contains('insecure-connection')) {
+    Future<void> closeSession() async {
+      await bind.sessionSetCommon(
+        sessionId: sessionId,
+        key: 'continue-insecure-connection',
+        value: 'N',
+      );
+      dialogManager.dismissAll();
+      closeConnection();
+    }
+
+    void continueSession() {
+      unawaited(
+        bind.sessionSetCommon(
+          sessionId: sessionId,
+          key: 'continue-insecure-connection',
+          value: 'Y',
+        ),
+      );
+      dialogManager.dismissAll();
+    }
+
+    dialogManager.show(
+      (setState, close, context) => CustomAlertDialog(
+        title: null,
+        content: SelectionArea(child: msgboxContent(type, title, text)),
+        actions: [
+          dialogButton(
+            'Continue',
+            onPressed: continueSession,
+            isOutline: true,
+          ),
+          dialogButton('Disconnect', onPressed: closeSession),
+        ],
+        onSubmit: closeSession,
+        onCancel: closeSession,
+      ),
+      tag: '$sessionId-$type-$title-$text-$link',
+    );
+    return;
+  }
+
   List<Widget> buttons = [];
   bool hasOk = false;
   submit() {
@@ -1468,13 +1519,6 @@ class AndroidPermissionManager {
   static Timer? _timer;
   static var _current = "";
 
-  static bool isWaitingFile() {
-    if (_completer != null) {
-      return !_completer!.isCompleted && _current == kManageExternalStorage;
-    }
-    return false;
-  }
-
   static Future<bool> check(String type) {
     if (isDesktop || isWeb) {
       return Future.value(true);
@@ -1589,7 +1633,8 @@ String bool2option(String option, bool b) {
   String res;
   if (option.startsWith('enable-') &&
       option != kOptionEnableUdpPunch &&
-      option != kOptionEnableIpv6Punch) {
+      option != kOptionEnableIpv6Punch &&
+      option != kOptionEnableWebrtc) {
     res = b ? defaultOptionYes : 'N';
   } else if (option.startsWith('allow-') ||
       option == kOptionStopService ||
@@ -2241,6 +2286,7 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
   String? password;
   String? switchUuid;
   bool? forceRelay;
+  var loginMethod = '';
   for (int i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--connect':
@@ -2284,6 +2330,9 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
         password = args[i + 1];
         i++;
         break;
+      case '--request-approval':
+        loginMethod = 'request-approval';
+        break;
       case '--switch_uuid':
         switchUuid = args[i + 1];
         i++;
@@ -2295,11 +2344,15 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
         break;
     }
   }
+  if (loginMethod == 'request-approval') {
+    password = null;
+  }
   if (type != null && id != null) {
     switch (type) {
       case UriLinkType.remoteDesktop:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newRemoteDesktop(id!,
+              loginMethod: loginMethod,
               password: password,
               switchUuid: switchUuid,
               forceRelay: forceRelay);
@@ -2308,30 +2361,35 @@ bool handleUriLink({List<String>? cmdArgs, Uri? uri, String? uriString}) {
       case UriLinkType.fileTransfer:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newFileTransfer(id!,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.viewCamera:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newViewCamera(id!,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.portForward:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newPortForward(id!, false,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.rdp:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newPortForward(id!, true,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
       case UriLinkType.terminal:
         Future.delayed(Duration.zero, () {
           rustDeskWinManager.newTerminal(id!,
+              loginMethod: loginMethod,
               password: password, forceRelay: forceRelay);
         });
         break;
@@ -2365,6 +2423,19 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     id = uri.path.substring("/new/".length);
   } else if (uri.authority == "config") {
     if (isAndroid || isIOS) {
+      final allowDeepLinkServerSettings =
+          bind.mainGetBuildinOption(key: kOptionAllowDeepLinkServerSettings) ==
+              'Y';
+      if (!allowDeepLinkServerSettings) {
+        debugPrint(
+            "Ignore rustdesk://config because $kOptionAllowDeepLinkServerSettings is not enabled.");
+        // Keep the user-facing error generic; detailed rejection reason is in debug logs.
+        // Delay toast to avoid missing overlay during cold-start deeplink handling.
+        Timer(Duration(seconds: 1), () {
+          showToast(translate('Failed'));
+        });
+        return null;
+      }
       final config = uri.path.substring("/".length);
       // add a timer to make showToast work
       Timer(Duration(seconds: 1), () {
@@ -2374,6 +2445,18 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     return null;
   } else if (uri.authority == "password") {
     if (isAndroid || isIOS) {
+      final allowDeepLinkPassword =
+          bind.mainGetBuildinOption(key: kOptionAllowDeepLinkPassword) == 'Y';
+      if (!allowDeepLinkPassword) {
+        debugPrint(
+            "Ignore rustdesk://password because $kOptionAllowDeepLinkPassword is not enabled.");
+        // Keep the user-facing error generic; detailed rejection reason is in debug logs.
+        // Delay toast to avoid missing overlay during cold-start deeplink handling.
+        Timer(Duration(seconds: 1), () {
+          showToast(translate('Failed'));
+        });
+        return null;
+      }
       final password = uri.path.substring("/".length);
       if (password.isNotEmpty) {
         Timer(Duration(seconds: 1), () async {
@@ -2403,6 +2486,10 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
 
   var queryParameters =
       uri.queryParameters.map((k, v) => MapEntry(k.toLowerCase(), v));
+  final requestApproval = queryParameters['request-approval'] == 'true';
+  if (requestApproval) {
+    queryParameters.remove('password');
+  }
 
   var key = queryParameters["key"];
   if (id != null) {
@@ -2414,24 +2501,30 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
   if (isMobile && id != null) {
     final forceRelay = queryParameters["relay"] != null;
     final password = queryParameters["password"];
+    final loginMethod = requestApproval ? 'request-approval' : '';
 
     // Determine connection type based on command
     if (command == '--file-transfer') {
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isFileTransfer: true, forceRelay: forceRelay, password: password);
     } else if (command == '--view-camera') {
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isViewCamera: true, forceRelay: forceRelay, password: password);
     } else if (command == '--terminal') {
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isTerminal: true, forceRelay: forceRelay, password: password);
-    } else if (command == 'terminal-admin') {
+    } else if (command == '--terminal-admin') {
       setEnvTerminalAdmin();
       connect(Get.context!, id,
+          loginMethod: loginMethod,
           isTerminal: true, forceRelay: forceRelay, password: password);
     } else {
       // Default to remote desktop for '--connect', '--play', or direct connection
-      connect(Get.context!, id, forceRelay: forceRelay, password: password);
+      connect(Get.context!, id,
+          loginMethod: loginMethod, forceRelay: forceRelay, password: password);
     }
     return null;
   }
@@ -2443,6 +2536,7 @@ List<String>? urlLinkToCmdArgs(Uri uri) {
     var param = queryParameters;
     String? password = param["password"];
     if (password != null) args.addAll(['--password', password]);
+    if (requestApproval) args.add('--request-approval');
     String? switch_uuid = param["switch_uuid"];
     if (switch_uuid != null) args.addAll(['--switch_uuid', switch_uuid]);
     if (param["relay"] != null) args.add("--relay");
@@ -2461,33 +2555,39 @@ connectMainDesktop(String id,
     bool? forceRelay,
     String? password,
     String? connToken,
-    bool? isSharedPassword}) async {
+    bool? isSharedPassword,
+    String loginMethod = ''}) async {
   if (isFileTransfer) {
     await rustDeskWinManager.newFileTransfer(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else if (isViewCamera) {
     await rustDeskWinManager.newViewCamera(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else if (isTcpTunneling || isRDP) {
     await rustDeskWinManager.newPortForward(id, isRDP,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else if (isTerminal) {
     await rustDeskWinManager.newTerminal(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         connToken: connToken,
         forceRelay: forceRelay);
   } else {
     await rustDeskWinManager.newRemoteDesktop(id,
+        loginMethod: loginMethod,
         password: password,
         isSharedPassword: isSharedPassword,
         forceRelay: forceRelay);
@@ -2508,7 +2608,8 @@ connect(BuildContext context, String id,
     bool forceRelay = false,
     String? password,
     String? connToken,
-    bool? isSharedPassword}) async {
+    bool? isSharedPassword,
+    String loginMethod = ''}) async {
   if (id == '') return;
   if (!isDesktop || desktopType == DesktopType.main) {
     try {
@@ -2533,6 +2634,7 @@ connect(BuildContext context, String id,
     if (desktopType == DesktopType.main) {
       await connectMainDesktop(
         id,
+        loginMethod: loginMethod,
         isFileTransfer: isFileTransfer,
         isViewCamera: isViewCamera,
         isTerminal: isTerminal,
@@ -2554,17 +2656,11 @@ connect(BuildContext context, String id,
         'isSharedPassword': isSharedPassword,
         'forceRelay': forceRelay,
         'connToken': connToken,
+        'loginMethod': loginMethod,
       });
     }
   } else {
     if (isFileTransfer) {
-      if (isAndroid) {
-        if (!await AndroidPermissionManager.check(kManageExternalStorage)) {
-          if (!await AndroidPermissionManager.request(kManageExternalStorage)) {
-            return;
-          }
-        }
-      }
       if (isWeb) {
         Navigator.push(
           context,
@@ -2572,6 +2668,7 @@ connect(BuildContext context, String id,
             builder: (BuildContext context) =>
                 desktop_file_manager.FileManagerPage(
                     id: id,
+                    loginMethod: loginMethod,
                     password: password,
                     isSharedPassword: isSharedPassword),
           ),
@@ -2582,6 +2679,7 @@ connect(BuildContext context, String id,
           MaterialPageRoute(
             builder: (BuildContext context) => FileManagerPage(
                 id: id,
+                loginMethod: loginMethod,
                 password: password,
                 isSharedPassword: isSharedPassword,
                 forceRelay: forceRelay),
@@ -2597,6 +2695,7 @@ connect(BuildContext context, String id,
                 desktop_view_camera.ViewCameraPage(
               key: ValueKey(id),
               id: id,
+              loginMethod: loginMethod,
               toolbarState: ToolbarState(),
               password: password,
               isSharedPassword: isSharedPassword,
@@ -2609,6 +2708,7 @@ connect(BuildContext context, String id,
           MaterialPageRoute(
             builder: (BuildContext context) => ViewCameraPage(
                 id: id,
+                loginMethod: loginMethod,
                 password: password,
                 isSharedPassword: isSharedPassword,
                 forceRelay: forceRelay),
@@ -2621,6 +2721,7 @@ connect(BuildContext context, String id,
         MaterialPageRoute(
           builder: (BuildContext context) => TerminalPage(
             id: id,
+            loginMethod: loginMethod,
             password: password,
             isSharedPassword: isSharedPassword,
             forceRelay: forceRelay,
@@ -2635,6 +2736,7 @@ connect(BuildContext context, String id,
             builder: (BuildContext context) => desktop_remote.RemotePage(
               key: ValueKey(id),
               id: id,
+              loginMethod: loginMethod,
               toolbarState: ToolbarState(),
               password: password,
               isSharedPassword: isSharedPassword,
@@ -2647,6 +2749,7 @@ connect(BuildContext context, String id,
           MaterialPageRoute(
             builder: (BuildContext context) => RemotePage(
                 id: id,
+                loginMethod: loginMethod,
                 password: password,
                 isSharedPassword: isSharedPassword,
                 forceRelay: forceRelay),
@@ -3046,6 +3149,15 @@ void onCopyFingerprint(String value) {
   }
 }
 
+void onCopyId(String value) {
+  if (value.isNotEmpty) {
+    Clipboard.setData(ClipboardData(text: value));
+    showToast('$value\n${translate("Copied")}');
+  } else {
+    showToast(translate("Invalid ID"));
+  }
+}
+
 Future<bool> callMainCheckSuperUserPermission() async {
   bool checked = await bind.mainCheckSuperUserPermission();
   if (isMacOS) {
@@ -3314,7 +3426,12 @@ Future<List<Rect>> getScreenRectList() async {
 }
 
 openMonitorInTheSameTab(int i, FFI ffi, PeerInfo pi,
-    {bool updateCursorPos = true}) {
+    {bool updateCursorPos = true, bool recordSelection = true}) {
+  if (recordSelection) {
+    ffi.ffiModel.lastUserDisplay = i;
+    ffi.ffiModel.cancelPendingRestoreTimer();
+    ffi.ffiModel.pendingMonitorRestore = null;
+  }
   final displays = i == kAllDisplayValue
       ? List.generate(pi.displays.length, (index) => index)
       : [i];
@@ -3677,14 +3794,54 @@ Widget loadPowered(BuildContext context) {
   ).marginOnly(top: 6);
 }
 
-// max 300 x 60
-Widget loadLogo() {
-  return FutureBuilder<ByteData>(
-      future: rootBundle.load('assets/logo.png'),
-      builder: (BuildContext context, AsyncSnapshot<ByteData> snapshot) {
-        if (snapshot.hasData) {
+const _kDefaultLogoAsset = 'assets/logo.png';
+const _kLightLogoAsset = 'assets/logo_light.png';
+const _kDarkLogoAsset = 'assets/logo_dark.png';
+
+List<String> _logoAssetCandidatesForBrightness(Brightness brightness) {
+  return brightness == Brightness.dark
+      ? [_kDarkLogoAsset, _kDefaultLogoAsset]
+      : [_kLightLogoAsset, _kDefaultLogoAsset];
+}
+
+Future<String?> _resolveLogoAsset(Brightness brightness) async {
+  for (final asset in _logoAssetCandidatesForBrightness(brightness)) {
+    try {
+      await rootBundle.load(asset);
+      return asset;
+    } on FlutterError {
+      continue;
+    }
+  }
+  return null;
+}
+
+class _Logo extends StatefulWidget {
+  const _Logo();
+
+  @override
+  State<_Logo> createState() => _LogoState();
+}
+
+class _LogoState extends State<_Logo> {
+  final Map<Brightness, Future<String?>> _logoFutures = {};
+
+  Future<String?> _logoFutureFor(Brightness brightness) {
+    return _logoFutures.putIfAbsent(
+      brightness,
+      () => _resolveLogoAsset(brightness),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _logoFutureFor(Theme.of(context).brightness),
+      builder: (BuildContext context, AsyncSnapshot<String?> snapshot) {
+        final asset = snapshot.data;
+        if (asset != null) {
           final image = Image.asset(
-            'assets/logo.png',
+            asset,
             fit: BoxFit.contain,
             errorBuilder: (ctx, error, stackTrace) {
               return Container();
@@ -3696,8 +3853,13 @@ Widget loadLogo() {
           ).marginOnly(left: 12, right: 12, top: 12);
         }
         return const Offstage();
-      });
+      },
+    );
+  }
 }
+
+// max 300 x 60
+Widget loadLogo() => const _Logo();
 
 Widget loadIcon(double size) {
   return Image.asset('assets/icon.png',
@@ -3876,6 +4038,11 @@ bool whitelistNotEmpty() {
   return v != '' && v != ',';
 }
 
+bool idWhitelistNotEmpty() {
+  final v = bind.mainGetOptionSync(key: kOptionIdWhitelist);
+  return v != '' && v != ',';
+}
+
 // `setMovable()` is only supported on macOS.
 //
 // On macOS, the window can be dragged by the tab bar by default.
@@ -3906,7 +4073,8 @@ Widget netWorkErrorWidget() {
     mainAxisAlignment: MainAxisAlignment.center,
     crossAxisAlignment: CrossAxisAlignment.center,
     children: [
-      Text(translate("network_error_tip")),
+      if (!gFFI.userModel.networkErrorFromServer.value)
+        Text(translate("network_error_tip")),
       ElevatedButton(
               onPressed: gFFI.userModel.refreshCurrentUser,
               child: Text(translate("Retry")))
@@ -4152,8 +4320,7 @@ Widget? buildAvatarWidget({
       width: size,
       height: size,
       fit: BoxFit.cover,
-      errorBuilder: (_, __, ___) =>
-          fallback ?? SizedBox.shrink(),
+      errorBuilder: (_, __, ___) => fallback ?? SizedBox.shrink(),
     ),
   );
 }

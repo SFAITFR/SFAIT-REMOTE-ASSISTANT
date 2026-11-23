@@ -4,13 +4,13 @@
 		<?include ..\Includes.wxi?>
 
 		<!--
-		Properties and related actions for specifying whether to install start menu/desktop shortcuts.
+		Properties and related actions for specifying whether to install start menu/desktop/startup shortcuts.
 		-->
 
 		<!-- These are the actual properties that get used in conditions to determine whether to
-				 install start menu shortcuts, they are initialized with a default value to install shortcuts.
-				 They should not be set directly from the command line or registry, instead the CREATE* properties
-				 below should be set, then they will update these properties with their values only if set. -->
+				 install shortcuts. Start menu and desktop shortcuts default to install, the startup
+				 (tray) shortcut defaults to not install (SFAIT). The CREATE* properties below update
+				 them from command line, bundle, or registry values. -->
 		<Property Id="STARTMENUSHORTCUTS" Value="1" Secure="yes"></Property>
 		<Property Id="DESKTOPSHORTCUTS" Value="1" Secure="yes"></Property>
 		<Property Id="STARTUPSHORTCUTS" Value="0" Secure="yes"></Property>
