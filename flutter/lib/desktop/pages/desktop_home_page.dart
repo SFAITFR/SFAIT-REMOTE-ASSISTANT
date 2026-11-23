@@ -48,6 +48,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   var watchIsInputMonitoring = false;
   var watchIsCanRecordAudio = false;
   Timer? _updateTimer;
+  // SFAIT: software update check, at launch then every 5 hours (GitHub API is rate limited).
+  Timer? _softwareUpdateTimer;
+  static const _kSoftwareUpdateCheckInterval = Duration(hours: 5);
   bool isCardClosed = false;
   bool _startupUpdateGateReleased = false;
   bool _startupUpdatePromptShown = false;
@@ -784,31 +787,42 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     }, tag: 'startup-force-update');
   }
 
+  // SFAIT: single background check, used when the startup gate does not run.
+  Future<void> _checkSoftwareUpdateOnce() async {
+    final hadUpdate = _getEffectiveUpdateUrl().isNotEmpty;
+    await bind.mainGetSoftwareUpdateUrl();
+    if (!hadUpdate && mounted && _getEffectiveUpdateUrl().isNotEmpty) {
+      setState(() {});
+    }
+  }
+
   Future<void> _runStartupUpdateGate() async {
     if (_startupUpdateGateReleased ||
         !mounted ||
         !isMainDesktopWindow ||
         !(isMacOS || isWindows)) {
       _releaseStartupUpdateGate();
+      if (mounted && isMainDesktopWindow) _checkSoftwareUpdateOnce();
       return;
     }
 
     if (isMacOS && !bind.mainIsInstalled()) {
       _releaseStartupUpdateGate();
+      _checkSoftwareUpdateOnce();
       return;
     }
 
     _block.value = true;
-    final deadline = DateTime.now().add(const Duration(seconds: 12));
-
-    while (mounted && DateTime.now().isBefore(deadline)) {
-      await bind.mainGetSoftwareUpdateUrl();
-      final effectiveUpdateUrl = _getEffectiveUpdateUrl();
-      if (effectiveUpdateUrl.isNotEmpty) {
-        await _showStartupUpdatePrompt(effectiveUpdateUrl);
-        return;
-      }
-      await Future.delayed(const Duration(milliseconds: 350));
+    // One check (the Rust call waits for the GitHub answer), at most 12 seconds.
+    try {
+      await bind
+          .mainGetSoftwareUpdateUrl()
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {}
+    final effectiveUpdateUrl = _getEffectiveUpdateUrl();
+    if (mounted && effectiveUpdateUrl.isNotEmpty) {
+      await _showStartupUpdatePrompt(effectiveUpdateUrl);
+      return;
     }
 
     await _releaseStartupUpdateGate();
@@ -818,14 +832,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
   void initState() {
     super.initState();
     Future.microtask(_runStartupUpdateGate);
-    Future.microtask(() async {
-      final hadUpdate = _getEffectiveUpdateUrl().isNotEmpty;
-      await bind.mainGetSoftwareUpdateUrl();
-      if (!hadUpdate && mounted && _getEffectiveUpdateUrl().isNotEmpty) {
-        setState(() {});
-      }
-    });
-    _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
+    _softwareUpdateTimer =
+        Timer.periodic(_kSoftwareUpdateCheckInterval, (_) async {
       if (stateGlobal.updateUrl.value.isEmpty) {
         final hadUpdate = _getEffectiveUpdateUrl().isNotEmpty;
         await bind.mainGetSoftwareUpdateUrl();
@@ -838,6 +846,8 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           }
         }
       }
+    });
+    _updateTimer = periodic_immediate(const Duration(seconds: 1), () async {
       await gFFI.serverModel.fetchID();
       final error = await bind.mainGetError();
       if (systemError != error) {
@@ -1013,6 +1023,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
     _uniLinksSubscription?.cancel();
     Get.delete<RxBool>(tag: 'stop-service');
     _updateTimer?.cancel();
+    _softwareUpdateTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

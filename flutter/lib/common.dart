@@ -4114,9 +4114,12 @@ void checkUpdate() {
         stateGlobal.updateUrl.value = evt['url'];
       }
     });
-    Timer(const Duration(seconds: 1), () async {
-      bind.mainGetSoftwareUpdateUrl();
-    });
+    // SFAIT: on desktop the home page checks once at launch, then every 5 hours.
+    if (!isDesktop) {
+      Timer(const Duration(seconds: 1), () async {
+        bind.mainGetSoftwareUpdateUrl();
+      });
+    }
   }
 }
 
