@@ -69,6 +69,32 @@ make_dmg() {
     "${OUT_DIR}/${dmg_name}"
 }
 
+# Same Flutter SDK fixes as RustDesk's own builds (.github/workflows/flutter-build.yml).
+patch_flutter_sdk() {
+  local binding="${FLUTTER_ROOT}/packages/flutter/lib/src/scheduler/binding.dart"
+  [ -f "${binding}" ] || { echo "Missing ${binding}" >&2; exit 1; }
+  # https://github.com/flutter/flutter/issues/133533: on macOS a desktop_multi_window
+  # sub-window (the remote session) stops drawing after switching to another app and back.
+  if grep -qE '^[[:space:]]*_setFramesEnabledState\(false\);' "${binding}"; then
+    sed -i '' -E 's/^([[:space:]]*)_setFramesEnabledState\(false\);/\1\/\/_setFramesEnabledState(false);/' "${binding}"
+    echo "Flutter SDK: workaround #133533 applied now"
+  else
+    echo "Flutter SDK: workaround #133533 already applied"
+  fi
+  grep -n '_setFramesEnabledState(false);' "${binding}"
+
+  local dropdown="${PROJECT_DIR}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff"
+  if git -C "${FLUTTER_ROOT}" apply --check "${dropdown}" 2>/dev/null; then
+    git -C "${FLUTTER_ROOT}" apply "${dropdown}"
+    echo "Flutter SDK: dropdown_menu enableFilter patch applied now"
+  elif git -C "${FLUTTER_ROOT}" apply -R --check "${dropdown}" 2>/dev/null; then
+    echo "Flutter SDK: dropdown_menu enableFilter patch already applied"
+  else
+    echo "Flutter SDK: dropdown_menu enableFilter patch does not apply, skipped"
+  fi
+}
+
+patch_flutter_sdk
 mkdir -p "${OUT_DIR}"
 
 make_dmg \
