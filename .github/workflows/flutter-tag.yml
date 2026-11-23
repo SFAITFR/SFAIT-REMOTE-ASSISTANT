@@ -1,13 +1,9 @@
 name: Flutter Tag Build
 
+# SFAIT: manual runs only (Actions tab). Releases are built locally and published by hand;
+# automatic tag runs re-marked releases as pre-releases and added unwanted assets.
 on:
   workflow_dispatch:
-  push:
-    tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+'
-      - 'v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
-      - '[0-9]+.[0-9]+.[0-9]+-[0-9]+'
 
 jobs:
   run-flutter-tag-build:
