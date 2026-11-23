@@ -320,6 +320,9 @@ def get_features(args):
         features.append('vram')
     if args.flutter:
         features.append('flutter')
+    # SFAIT: SFAIT_EDITION=technician builds "SFAIT Remote Assistant Technician" (src/brand.rs).
+    if os.environ.get('SFAIT_EDITION', 'client') == 'technician':
+        features.append('technician')
     if args.unix_file_copy_paste:
         features.append('unix-file-copy-paste')
     if args.drm:

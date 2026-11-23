@@ -90,6 +90,9 @@ class _DesktopHomePageState extends State<DesktopHomePage>
           alignment: Alignment.center,
           child: loadPowered(context),
         ),
+      // SFAIT: the client edition shows the SFAIT logo (assets/logo_light.png / logo_dark.png).
+      // Fixed height (60 + 12 top margin) so the window is sized right before the image loads.
+      if (isIncomingOnly) SizedBox(height: 72, child: loadLogo()),
       buildTip(context),
       if (!isOutgoingOnly) buildIDBoard(context),
       if (!isOutgoingOnly) buildPasswordBoard(context),
@@ -760,7 +763,7 @@ class _DesktopHomePageState extends State<DesktopHomePage>
         ),
         actions: [
           dialogButton(
-            'Quitter SFAIT Remote Assistant',
+            'Quitter ${bind.mainGetAppNameSync()}',
             onPressed: () async {
               close();
               await _quitForRequiredUpdate();

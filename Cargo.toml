@@ -50,6 +50,8 @@ unix-file-copy-paste = [
     "clipboard/unix-file-copy-paste",
 ]
 screencapturekit = ["cpal/screencapturekit"]
+# SFAIT: build the "SFAIT Remote Assistant Technician" edition (see src/brand.rs).
+technician = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

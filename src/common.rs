@@ -146,6 +146,11 @@ pub fn global_init() -> bool {
             keys::OPTION_ALLOW_AUTO_UPDATE.to_owned(),
             "Y".to_owned(),
         );
+        if !crate::brand::IS_TECHNICIAN {
+            // SFAIT client edition: only accept incoming connections (the window shows just
+            // the ID and password, and outgoing connections are refused by the core).
+            hard_settings.insert("conn-type".to_owned(), "incoming".to_owned());
+        }
     }
     // Make the branded server settings visible and effective from the first launch,
     // including in desktop UI flows that read persisted options directly.

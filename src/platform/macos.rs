@@ -378,6 +378,15 @@ fn update_daemon_agent(agent_plist_file: String, update_source: UpdateSource) ->
 
 fn correct_app_name(s: &str) -> String {
     let mut s = s.to_owned();
+    // SFAIT: the scripts and plists are written for the client edition; retarget them to the
+    // edition being run (identity for the client). Done first, before the RustDesk replacements
+    // below, so a name they insert is never replaced twice.
+    s = s.replace(crate::brand::CLIENT_BUNDLE_IDENTIFIER, &crate::get_full_name());
+    s = s.replace(crate::brand::CLIENT_APP_NAME, &crate::get_app_name());
+    s = s.replace(
+        &crate::brand::CLIENT_APP_NAME.to_lowercase().replace(' ', "_"),
+        &crate::get_app_name().to_lowercase().replace(' ', "_"),
+    );
     if let Some(bundleid) = get_bundle_id() {
         s = s.replace("com.carriez.rustdesk", &bundleid);
     }

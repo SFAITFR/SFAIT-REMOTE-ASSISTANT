@@ -84,6 +84,15 @@ Copy-Item -LiteralPath (Join-Path $distStageDir "rustdesk.exe") -Destination (Jo
 
 Copy-Item -LiteralPath (Join-Path $repoRoot "res\msi") -Destination $msiWorkDir -Recurse -Force
 
+# SFAIT: the installer texts name the client edition; use this edition's name instead.
+$clientAppName = "SFAIT Remote Assistant"
+if ($AppName -ne $clientAppName) {
+    Get-ChildItem -Path (Join-Path $msiWorkDir "Package\Language") -Filter *.wxl | ForEach-Object {
+        $text = [IO.File]::ReadAllText($_.FullName)
+        [IO.File]::WriteAllText($_.FullName, $text.Replace($clientAppName, $AppName))
+    }
+}
+
 $preprocessFile = Join-Path $msiWorkDir "preprocess.py"
 $preprocessContent = Get-Content -Raw $preprocessFile
 $preprocessContent = $preprocessContent.Replace('f"{dist_app} {args}"', 'f''"{dist_app}" {args}''')
@@ -127,9 +136,12 @@ if (-not $builtMsi) {
     throw "Aucun fichier MSI n'a ete genere."
 }
 
-$portableOutput = Join-Path $signOutputDir "SFAIT_Remote_Assistant_portable.exe"
-$setupOutput = Join-Path $signOutputDir "SFAIT_Remote_Assistant_setup.exe"
-$msiOutput = Join-Path $signOutputDir "SFAIT_Remote_Assistant_installer.msi"
+# Release asset names follow the edition: SFAIT_Remote_Assistant_* or
+# SFAIT_Remote_Assistant_Technician_* (must match src/brand.rs).
+$assetBase = $AppName.Replace(' ', '_')
+$portableOutput = Join-Path $signOutputDir "${assetBase}_portable.exe"
+$setupOutput = Join-Path $signOutputDir "${assetBase}_setup.exe"
+$msiOutput = Join-Path $signOutputDir "${assetBase}_installer.msi"
 
 Copy-Item -LiteralPath $portableSourceExe -Destination $portableOutput -Force
 Copy-Item -LiteralPath $setupSourceExe -Destination $setupOutput -Force

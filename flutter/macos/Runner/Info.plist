@@ -26,10 +26,10 @@
 			<key>CFBundleURLIconFile</key>
 			<string></string>
 			<key>CFBundleURLName</key>
-			<string>fr.sfait.remoteassistant</string>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>sfaitremoteassistant</string>
+				<string>$(SFAIT_URI_SCHEME)</string>
 			</array>
 		</dict>
 	</array>
